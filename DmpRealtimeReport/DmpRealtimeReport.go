@@ -381,18 +381,20 @@ func Excute(str_log string, idx int) {
 	str_log = strings.Replace(str_log, "\t", "", 1)
 	var log_arr []string = strings.Split(str_log, sep_str)
 	if len(log_arr) > 2 {
-		if (log_arr[1] == "2") && (len(log_arr) >= 43) {
-			getad_process(&log_arr)
-		} else if (log_arr[1] == "3") && (len(log_arr) >= 50) {
-			view_process(&log_arr)
-		} else if (log_arr[1] == "4") && (len(log_arr) >= 47) {
+		if (log_arr[1] == "4") && (len(log_arr) >= 15) {
 			click_process(&log_arr)
-		} else if (log_arr[1] == "5") && (len(log_arr) >= 46) {
-			winnotic_process(&log_arr)
-		} else if (log_arr[1] == "6") && (len(log_arr) >= 9) {
-			arrive_log_cache <- log_arr
-			//arrive_process(&log_arr)
 		}
+		/*
+				getad_process(&log_arr)
+			} else if (log_arr[1] == "3") && (len(log_arr) >= 50) {
+				view_process(&log_arr)
+			} else if (log_arr[1] == "4") && (len(log_arr) >= 47) {
+			} else if (log_arr[1] == "5") && (len(log_arr) >= 46) {
+				winnotic_process(&log_arr)
+			} else if (log_arr[1] == "6") && (len(log_arr) >= 9) {
+				arrive_log_cache <- log_arr
+				//arrive_process(&log_arr)
+			}*/
 	}
 }
 
@@ -1239,41 +1241,15 @@ func clickSetRecord(strkey string, oid string, cid string, advid string, algorit
 }
 
 func click_process(strarr *[]string) {
-	adid := (*strarr)[3]
-	oid := (*strarr)[4]
-	/*ioid, _ := strconv.Atoi(oid)
-	if ioid < 200000 {
-		return
-	} */
-	cid := (*strarr)[42]
-	advid := (*strarr)[43]
-	browser := (*strarr)[12]
-	os := (*strarr)[13]
-	if len(browser) <= 0 {
-		browser = "0"
-	}
-	if len(os) <= 0 {
-		os = "0"
-	}
-	slotid := (*strarr)[17]
-	if len(slotid) <= 0 {
-		slotid = "-1"
-	}
-	areaid := (*strarr)[11]
-	domain := getDomain((*strarr)[15])
-	if len(domain) <= 0 {
-		domain = "-1"
-	}
-	esd := getMd5(slotid + "_" + domain)
-	exchangeid := (*strarr)[5]
-	cs := (*strarr)[21]
-	channel := (*strarr)[20]
-	media_type := (*strarr)[8]
-	click_time := (*strarr)[2]
-	timestamp, _ := strconv.Atoi((*strarr)[2])
+	cid, _ = strconv.Atoi((*strarr)[5])
+	timestamp, _ := strconv.Atoi((*strarr)[1])
 	str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02")
 	str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
 	str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
+
+	br_app_key := "BR^" + str_today + "^" + advid + "^" + cid + "^" + oid + "^" + mb_appid + "^" + slotid
+	clickSetRecord(mb_app_key, oid, cid, advid, algorithm_type, int64(clickcost), int64(kclickcost), int64(advcost), isuser_click, is_umod, tmp_is_order_stop)
+
 	var user_cate_list []string = strings.Split((*strarr)[41], ",")
 	bid_time, _ := strconv.Atoi((*strarr)[19])
 	is_umod := (*strarr)[37]

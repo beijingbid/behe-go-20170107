@@ -5,7 +5,7 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
+	//"encoding/json"
 	"flag"
 	"fmt"
 	"hash/crc32"
@@ -13,31 +13,30 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
+	//"os"
 	"os/exec"
-	"os/signal"
+	//"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	kafka "github.com/Shopify/sarama"
+	//kafka "github.com/Shopify/sarama"
 	"github.com/garyburd/redigo/redis"
 )
 
 type reportInfo struct {
-	did	string
+	did string
 	bid string
 	pid string
 	cid string
-	
-	view_num        int64
-	click_num       int64
-	
-	m_lock   sync.Mutex
-}
 
+	view_num  int64
+	click_num int64
+
+	m_lock sync.Mutex
+}
 
 var log_resource string
 
@@ -58,7 +57,7 @@ var task_ch []chan string
 var count int
 
 var pools_redis []*redis.Pool
-var pools_redis_click[]*redis.Pool
+var pools_redis_click []*redis.Pool
 
 var conn_http *http.Client = &http.Client{
 
@@ -81,7 +80,7 @@ var conn_http *http.Client = &http.Client{
 
 // 发请求的方法，可以留用
 func requestHttp(str_task_key string) bool {
-	
+
 	hv := getCrc(str_task_key)
 	str_hv := strconv.Itoa(int(hv))
 	str_b64 := base64.StdEncoding.EncodeToString([]byte(str_task_key))
@@ -100,7 +99,6 @@ func requestHttp(str_task_key string) bool {
 	}
 	return true
 }
-
 
 func paraURI(str_uri string, para_map *map[string]string) {
 	ipos := strings.Index(str_uri, "?")
@@ -173,7 +171,6 @@ func initTaskCh() {
 }
 
 func fillTask_syslog() {
-	//cmd := exec.Command("cat", "count.log.2015-09-23-10")
 	cmd := exec.Command("cat", "dsp_pipe_count")
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Start()
@@ -192,49 +189,6 @@ func fillTask_syslog() {
 		task_ch[getCrc(inputString)%uint32(count)] <- inputString
 	}
 }
-
-/*
-func fillTask_kafka() {
-	consumer, err := kafka.NewConsumer([]string{"kafka-0001:9092", "kafka-0002:9092", "kafka-0003:9092", "kafka-0004:9092", "kafka-0005:9092", "kafka-0006:9092", "kafka-0007:9092", "kafka-0008:9092"}, nil)
-	if err != nil {
-		fmt.Println(err)
-		panic(err)
-	}
-
-	defer func() {
-		if err := consumer.Close(); err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	partitionConsumer, err := consumer.ConsumePartition("adrtlog", 0, kafka.OffsetNewest)
-	if err != nil {
-		fmt.Println(err)
-		panic(err)
-	}
-
-	defer func() {
-		if err := partitionConsumer.Close(); err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	// Trap SIGINT to trigger a shutdown.
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt)
-
-ConsumerLoop:
-	for {
-		select {
-		case msg := <-partitionConsumer.Messages():
-			//fmt.Println("Consumed message offset ", msg.Offset, string(msg.Value))
-			task_ch[getCrc(string(msg.Value))%uint32(count)] <- string(msg.Value)
-		case <-signals:
-			break ConsumerLoop
-		}
-	}
-}
-*/
 
 func processTask(idx int) {
 	for {
@@ -262,7 +216,7 @@ func Excute(str_log string, idx int) {
 	}
 }
 
-func viewSetRecord(strkey , did , bid , pid ,cid string) {
+func viewSetRecord(strkey, did, bid, pid, cid string) {
 	var tmprec *reportInfo
 	g_recored[rec_idx].m_record_lock.RLock()
 	tmprec = g_recored[rec_idx].m_record[strkey]
@@ -272,8 +226,6 @@ func viewSetRecord(strkey , did , bid , pid ,cid string) {
 		g_recored[rec_idx].m_record_lock.Lock()
 		tmprec = g_recored[rec_idx].m_record[strkey]
 		if tmprec == nil {
-			x.action_map = make(map[string]int64)
-			x.user_action_map = make(map[string]int64)
 			g_recored[rec_idx].m_record[strkey] = &x
 			tmprec = &x
 		}
@@ -298,23 +250,23 @@ func view_process(strarr *[]string) {
 	bid := (*strarr)[4]
 	pid := (*strarr)[5]
 	cid := (*strarr)[6]
-	
+
 	timestamp, _ := strconv.Atoi((*strarr)[2])
 	str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02")
-	str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
-	str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
+	//str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
+	//str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
 
 	shift_g_recored_lock.RLock()
 
-	if adtype >= 2 {
 	//基础报表-------------------
 	tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
-	viewSetRecord(tb_base_key, did, bid,pid,cid)
+	viewSetRecord(tb_base_key, did, bid, pid, cid)
 
 	//---------------------------------
 	shift_g_recored_lock.RUnlock()
 
 }
+
 /*
 func record_Click(did , bid , pid ,cid string) int {
 
@@ -342,7 +294,7 @@ func record_Click(did , bid , pid ,cid string) int {
 
 */
 func clickSetRecord(strkey string, did string, pid string, bid string, cid string) {
-/*
+
 	var tmprec *reportInfo
 	g_recored[rec_idx].m_record_lock.RLock()
 	tmprec = g_recored[rec_idx].m_record[strkey]
@@ -352,8 +304,6 @@ func clickSetRecord(strkey string, did string, pid string, bid string, cid strin
 		g_recored[rec_idx].m_record_lock.Lock()
 		tmprec = g_recored[rec_idx].m_record[strkey]
 		if tmprec == nil {
-			x.action_map = make(map[string]int64)
-			x.user_action_map = make(map[string]int64)
 			g_recored[rec_idx].m_record[strkey] = &x
 			tmprec = &x
 		}
@@ -370,28 +320,28 @@ func clickSetRecord(strkey string, did string, pid string, bid string, cid strin
 	tmprec.cid = cid
 	tmprec.click_num++
 	tmprec.m_lock.Unlock()
-*/
+
 }
 
 func click_process(strarr *[]string) {
-	
-	did, _ = strconv.Atoi((*strarr)[3])
-	bid, _ = strconv.Atoi((*strarr)[4])
-	pid, _ = strconv.Atoi((*strarr)[5])
-	cid, _ = strconv.Atoi((*strarr)[6])
+
+	did := (*strarr)[3]
+	bid := (*strarr)[4]
+	pid := (*strarr)[5]
+	cid := (*strarr)[6]
 	timestamp, _ := strconv.Atoi((*strarr)[1])
 	str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02")
-	str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
-	str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
-
+	//str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
+	//str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
 
 	shift_g_recored_lock.RLock()
 	tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
-	clickSetRecord(tb_base_key, did,bid,pid,cid)
+	clickSetRecord(tb_base_key, did, bid, pid, cid)
 	shift_g_recored_lock.RUnlock()
 
 }
 
+/*
 func raSetRecord(strkey , did,bid,pid,cid string) {
 	var tmprec *reportInfo
 	g_recored[rec_idx].m_record_lock.RLock()
@@ -420,7 +370,7 @@ func raSetRecord(strkey , did,bid,pid,cid string) {
 	tmprec.cid = cid
 	tmprec.m_lock.Unlock()
 }
-
+*/
 func updateRecord() {
 	record_timestamp := time.Now().Unix()
 	for {
@@ -443,9 +393,9 @@ func updateRecord() {
 func updateMap2Redis(idx int, rec_time int64) {
 	redis_conn := pools_redis[idx].Get()
 	defer redis_conn.Close()
-	now_timestamp := time.Now().Unix()
+	//now_timestamp := time.Now().Unix()
 	for redis_key, rpinfo := range g_recored[idx].m_record {
-		var strarr []string = strings.Split(redis_key, "^")
+		//var strarr []string = strings.Split(redis_key, "^")
 		res, err := redis_conn.Do("HMSET", redis_key, "did", rpinfo.did, "bid", rpinfo.bid, "pid", rpinfo.pid, "cid", rpinfo.cid)
 		if err != nil {
 			fmt.Println("ErrHs:", res, "HMSET", redis_key, "did", rpinfo.did, "bid", rpinfo.bid, "pid", rpinfo.pid, "cid", rpinfo.cid)
@@ -487,10 +437,24 @@ func isSameDay(timestamp1 int, timestamp2 int) bool {
 	}
 }
 
+func loadsavetask() {
+	for {
+		loadfile()
+		time.Sleep(3600 * time.Second)
+	}
+}
+
+//发送保存数据的任务
+func loadfile() {
+	/*
+		blacklistip_map_lock.Lock()
+		blacklistip_map = make(map[string]int)
+		blacklistip_map_lock.Unlock()*/
+}
+
 func main() {
-	go loadblacklist()
+	go loadsavetask()
 	flag.Parse()
-	str_is_backup := flag.Arg(0)
 	log_resource := flag.Arg(1)
 	pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 	pools_redis_click = append(pools_redis_click, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
@@ -511,4 +475,3 @@ func main() {
 
 	<-quit
 }
-

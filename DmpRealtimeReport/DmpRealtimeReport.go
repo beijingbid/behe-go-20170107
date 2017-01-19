@@ -1,23 +1,25 @@
 package main
 
 import (
-	//"bufio"
+	"bufio"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
 	//"encoding/json"
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"hash/crc32"
-	//"io"
+	"io"
 	"io/ioutil"
 	"log"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
-	//"os/exec"
+	"os/exec"
 	//"os/signal"
-	"math/rand"
+	//"math/rand"
 	"runtime"
 	"strconv"
 	"strings"
@@ -36,8 +38,7 @@ type reportInfo struct {
 
 	view_num  int64
 	click_num int64
-
-	m_lock sync.Mutex
+	m_lock    sync.Mutex
 }
 
 var log_resource string
@@ -90,7 +91,7 @@ func requestHttp(str_task_key string) bool {
 	str_url := "http://mysql.behe.com:8041/set?hv=" + str_hv + "&tsk=" + str_b64
 	resp, err := conn_http.Get(str_url)
 	if err != nil {
-		blog(" ERR1:")
+		//blog(" ERR1:")
 		fmt.Println("Err1:", err)
 		return false
 	}
@@ -98,7 +99,7 @@ func requestHttp(str_task_key string) bool {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		blog("Err2:")
+		//blog("Err2:")
 		fmt.Println("Err2:", err, "body:", body)
 		return false
 	}
@@ -148,7 +149,7 @@ func getMd5(key string) string {
 }
 
 func initRecoredSet() {
-	blog(" func initRecoredSet start")
+	//blog(" func initRecoredSet start")
 	var v RecoredSet
 	var v1 RecoredSet
 	v.m_record = make(map[string]*reportInfo)
@@ -157,7 +158,7 @@ func initRecoredSet() {
 	g_recored = append(g_recored, v1)
 	rec_idx = 0
 	recordset_size = 2
-	blog(" func initRecoredSet end")
+	//blog(" func initRecoredSet end")
 }
 
 func getCrc(key string) uint32 {
@@ -171,20 +172,20 @@ func getCrc(key string) uint32 {
 
 // 管道数量
 func initTaskCh() {
-	blog(" func initTaskCh start")
-	count = 3
+	//blog(" func initTaskCh start")
+	count = 1
 	for i := 0; i < count; i++ {
 		task_ch = append(task_ch, make(chan string, 300000))
-		blog(" run task_ch " + strconv.Itoa(i))
+		//blog(" run task_ch " + strconv.Itoa(i))
 	}
-	blog(" func initTaskCh end")
+	//blog(" func initTaskCh end")
 }
 func create_demo() string {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	rn := r.Intn(6)
+
+	rn := RandInt64(3, 5)
 	timestamp := time.Now().Unix()
 
-	demo_log := ""
+	demo_log := "0"
 	if rn == 3 {
 		demo_log += sep_str + "3"
 
@@ -195,75 +196,82 @@ func create_demo() string {
 		demo_log += sep_str + "4"
 
 	} else {
-		demo_log += sep_str + strconv.Itoa(rn)
+		demo_log += sep_str + "4"
 	}
 	demo_log += sep_str + strconv.FormatInt(timestamp, 10)
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	demo_log += sep_str + strconv.Itoa(r.Intn(6))
-	blog(" demo_log " + demo_log)
+	demo_log += sep_str + strconv.FormatInt(RandInt64(1, 3), 10)
+	demo_log += sep_str + strconv.FormatInt(RandInt64(1, 3), 10)
+	demo_log += sep_str + strconv.FormatInt(RandInt64(1, 3), 10)
+	demo_log += sep_str + strconv.FormatInt(RandInt64(1, 3), 10)
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	demo_log += sep_str + " "
+	////blog(" demo_log " + demo_log)
 	return demo_log
 }
 
 func fillTask_syslog() {
-	blog(" func fillTask_syslog start")
-	/*cmd := exec.Command("cat", "dsp_pipe_count")
+	//blog(" func fillTask_syslog start")
+	cmd := exec.Command("cat", "dsp_pipe_count")
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Start()
 	inputReader := bufio.NewReader(stdout)
-	*/
+
 	for {
-		/*
-			inputString, readerError := inputReader.ReadString('\n')
-			if readerError == io.EOF {
+
+		inputString, readerError := inputReader.ReadString('\n')
+		if readerError == io.EOF {
+			/*
 				time.Sleep(1 * time.Second)
 				stdout.Close()
 				cmd = exec.Command("cat", "dsp_pipe_count")
 				stdout, _ = cmd.StdoutPipe()
 				cmd.Start()
 				inputReader = bufio.NewReader(stdout)
-				continue
-			}*/
-		time.Sleep(1 * time.Second)
-		inputString := create_demo()
+				continue*/
+			time.Sleep(1 * time.Second)
+			inputString = create_demo()
+			//blog(" call func create_demo and result = " + inputString)
+		}
 		task_ch[getCrc(inputString)%uint32(count)] <- inputString
 	}
-	blog(" func fillTask_syslog end")
+	//blog(" func fillTask_syslog end")
 }
 
 func processTask(idx int) {
-	blog(" func processTask start")
+	//blog(" func processTask start")
 	for {
 		str_log, ok := <-task_ch[idx]
 		if ok == false {
-			blog("task queue empty!")
+			//blog("task queue empty!")
 			fmt.Println("task queue empty!")
 		}
+		if str_log == "" {
+			str_log = create_demo()
+		}
+		////blog(" call func Excute [" + str_log + "],[" + strconv.Itoa(idx) + "]")
 		Excute(str_log, idx)
 	}
-	blog(" func processTask end")
+	//blog(" func processTask end")
 }
 
 func Excute(str_log string, idx int) {
 	str_log = strings.Replace(str_log, "\n", "", 1)
 	str_log = strings.Replace(str_log, "\r", "", 1)
 	str_log = strings.Replace(str_log, "\t", "", 1)
-	blog(" Excute log " + str_log)
+	////blog(" Excute log " + str_log)
 	var log_arr []string = strings.Split(str_log, sep_str)
 	if len(log_arr) > 2 {
 		if (log_arr[1] == "4") && (len(log_arr) >= 15) {
@@ -273,7 +281,7 @@ func Excute(str_log string, idx int) {
 		} else if (log_arr[1] == "5") && (len(log_arr) >= 15) {
 			view_process(&log_arr)
 		}
-		blog(" func Excute " + log_arr[1])
+		////blog(" func Excute " + log_arr[1])
 	}
 }
 
@@ -301,9 +309,10 @@ func viewSetRecord(strkey, did, bid, pid, cid string) {
 	tmprec.bid = bid
 	tmprec.pid = pid
 	tmprec.cid = cid
-
 	tmprec.view_num++
 	tmprec.m_lock.Unlock()
+	//blog(" view did " + did + " bid " + bid + " pid " + pid + " cid " + cid + " view " + strconv.FormatInt(tmprec.view_num, 10))
+
 }
 
 func view_process(strarr *[]string) {
@@ -316,15 +325,18 @@ func view_process(strarr *[]string) {
 	str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02")
 	//str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
 	//str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
+	if str_today == "1970-01-01" {
 
-	shift_g_recored_lock.RLock()
+	} else {
+		shift_g_recored_lock.RLock()
 
-	//基础报表-------------------
-	tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
-	viewSetRecord(tb_base_key, did, bid, pid, cid)
+		//基础报表-------------------
+		tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
+		viewSetRecord(tb_base_key, did, bid, pid, cid)
 
-	//---------------------------------
-	shift_g_recored_lock.RUnlock()
+		//---------------------------------
+		shift_g_recored_lock.RUnlock()
+	}
 
 }
 
@@ -355,12 +367,13 @@ func record_Click(did , bid , pid ,cid string) int {
 
 */
 func clickSetRecord(strkey string, did string, pid string, bid string, cid string) {
-
+	//blog(" debug func clickSetRecord ")
 	var tmprec *reportInfo
 	g_recored[rec_idx].m_record_lock.RLock()
 	tmprec = g_recored[rec_idx].m_record[strkey]
 	g_recored[rec_idx].m_record_lock.RUnlock()
 	if tmprec == nil {
+		//blog(" debug func clickSetRecord step 1")
 		var x reportInfo
 		g_recored[rec_idx].m_record_lock.Lock()
 		tmprec = g_recored[rec_idx].m_record[strkey]
@@ -370,10 +383,12 @@ func clickSetRecord(strkey string, did string, pid string, bid string, cid strin
 		}
 		g_recored[rec_idx].m_record_lock.Unlock()
 	} else {
+		//blog(" debug func clickSetRecord step 2")
 		g_recored[rec_idx].m_record_lock.RLock()
 		tmprec = g_recored[rec_idx].m_record[strkey]
 		g_recored[rec_idx].m_record_lock.RUnlock()
 	}
+	//blog(" debug func clickSetRecord step 3")
 	tmprec.m_lock.Lock()
 	tmprec.did = did
 	tmprec.bid = bid
@@ -381,25 +396,28 @@ func clickSetRecord(strkey string, did string, pid string, bid string, cid strin
 	tmprec.cid = cid
 	tmprec.click_num++
 	tmprec.m_lock.Unlock()
+	//blog(" debug func clickSetRecord step 4")
+	//blog(" click did " + did + " bid " + bid + " pid " + pid + " cid " + cid + " view " + strconv.FormatInt(tmprec.click_num, 10))
 
 }
 
 func click_process(strarr *[]string) {
-
 	did := (*strarr)[3]
 	bid := (*strarr)[4]
 	pid := (*strarr)[5]
 	cid := (*strarr)[6]
-	timestamp, _ := strconv.Atoi((*strarr)[1])
+	timestamp, _ := strconv.Atoi((*strarr)[2])
 	str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02")
 	//str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
 	//str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
+	if str_today == "1970-01-01" {
 
-	shift_g_recored_lock.RLock()
-	tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
-	clickSetRecord(tb_base_key, did, bid, pid, cid)
-	shift_g_recored_lock.RUnlock()
-
+	} else {
+		shift_g_recored_lock.RLock()
+		tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
+		clickSetRecord(tb_base_key, did, bid, pid, cid)
+		shift_g_recored_lock.RUnlock()
+	}
 }
 
 /*
@@ -432,12 +450,13 @@ func raSetRecord(strkey , did,bid,pid,cid string) {
 	tmprec.m_lock.Unlock()
 }
 */
+// 执行一次写入redis
 func updateRecord() {
 
-	blog(" func updateRecord start")
+	//blog(" func updateRecord start")
 	record_timestamp := time.Now().Unix()
 	for {
-		time.Sleep(30 * time.Second)
+		time.Sleep(10 * time.Second)
 		old_rec_idx := rec_idx
 		shift_g_recored_lock.Lock()
 		if rec_idx == 0 {
@@ -451,45 +470,54 @@ func updateRecord() {
 		updateMap2Redis(old_rec_idx, time_sep)
 
 	}
-	blog(" func updateRecord end")
+	//blog(" func updateRecord end")
 }
 
 func updateMap2Redis(idx int, rec_time int64) {
-	blog(" func updateMap2Redis start")
+	//blog(" func updateMap2Redis start")
 	redis_conn := pools_redis[idx].Get()
 	defer redis_conn.Close()
 	//now_timestamp := time.Now().Unix()
 	for redis_key, rpinfo := range g_recored[idx].m_record {
 		//var strarr []string = strings.Split(redis_key, "^")
-		res, err := redis_conn.Do("HMSET", redis_key, "did", rpinfo.did, "bid", rpinfo.bid, "pid", rpinfo.pid, "cid", rpinfo.cid)
+		res, err := redis_conn.Do("HMSET", redis_key, "view_num")
 		if err != nil {
-			blog("ErrHs:")
-			fmt.Println("ErrHs:", res, "HMSET", redis_key, "did", rpinfo.did, "bid", rpinfo.bid, "pid", rpinfo.pid, "cid", rpinfo.cid)
+			//blog("ErrHs:")
+			fmt.Println("ErrHs:", res, "HMSET", redis_key, "view_num")
+		}
+		res, err = redis_conn.Do("HMSET", redis_key, "click_num")
+		//res, err := redis_conn.Do("HMSET", redis_key, "did", rpinfo.did, "bid", rpinfo.bid, "pid", rpinfo.pid, "cid", rpinfo.cid)
+		if err != nil {
+			//blog("ErrHs:")
+			fmt.Println("ErrHs:", res, "HMSET", redis_key, "click_num")
 		}
 		res, err = redis_conn.Do("EXPIRE", redis_key, 172800)
 		if err != nil {
-			blog("ErrHs:")
+			//blog("ErrHs:")
 			fmt.Println("ErrHs:", res, "EXPIRE", redis_key, 172800)
 		}
 
 		var tmp_num int64
 		tmp_num = 0
-
 		if rpinfo.view_num > 0 {
+			//blog(" debug view_num = " + strconv.FormatInt(rpinfo.view_num, 10))
 			tmp_num, err = redis.Int64(redis_conn.Do("HINCRBY", redis_key, "view", rpinfo.view_num))
 			if err != nil {
 				fmt.Println("ErrInc:", tmp_num, err, "HINCRBY", redis_key, "view", rpinfo.view_num)
 			}
 		}
 		if rpinfo.click_num > 0 {
+			//blog(" debug click_num = " + strconv.FormatInt(rpinfo.click_num, 10))
 			tmp_num, err = redis.Int64(redis_conn.Do("HINCRBY", redis_key, "click", rpinfo.click_num))
 			if err != nil {
 				fmt.Println("ErrInc:", tmp_num, err, "HINCRBY", redis_key, "click", rpinfo.click_num)
 			}
+		} else {
+			//blog(" debug click_num = 0")
 		}
 	}
 	g_recored[idx].m_record = make(map[string]*reportInfo)
-	blog(" func updateMap2Redis end")
+	//blog(" func updateMap2Redis end")
 }
 
 func isSameDay(timestamp1 int, timestamp2 int) bool {
@@ -504,6 +532,14 @@ func isSameDay(timestamp1 int, timestamp2 int) bool {
 		return false
 	}
 }
+func RandInt64(min, max int64) int64 {
+	maxBigInt := big.NewInt(max)
+	i, _ := rand.Int(rand.Reader, maxBigInt)
+	if i.Int64() < min {
+		RandInt64(min, max)
+	}
+	return i.Int64()
+}
 
 // 休眠时间
 func loadsavetask() {
@@ -515,7 +551,7 @@ func loadsavetask() {
 
 //发送保存数据的任务
 func loadfile() {
-	blog(" func loadfile")
+	//blog(" func loadfile")
 	/*
 		blacklistip_map_lock.Lock()
 		blacklistip_map = make(map[string]int)

@@ -173,7 +173,7 @@ func getCrc(key string) uint32 {
 // 管道数量
 func initTaskCh() {
 	//blog(" func initTaskCh start")
-	count = 32
+	count = 1
 	for i := 0; i < count; i++ {
 		task_ch = append(task_ch, make(chan string, 300000))
 		//blog(" run task_ch " + strconv.Itoa(i))
@@ -517,6 +517,7 @@ func updateMap2Redis(idx int, rec_time int64) {
 		}
 		// 发起一个http的请求
 		requestHttp(redis_key)
+
 	}
 	g_recored[idx].m_record = make(map[string]*reportInfo)
 	//blog(" func updateMap2Redis end")

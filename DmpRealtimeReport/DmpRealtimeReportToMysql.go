@@ -111,6 +111,7 @@ func addTask(writer http.ResponseWriter, req *http.Request) {
 	for i := 0; i < n; i++ {
 		task_key, _ := base64.StdEncoding.DecodeString(strarr[i])
 		str_task_key := string(task_key)
+
 		strarr_sub = strings.Split(str_task_key, "^")
 		did, _ := strconv.Atoi(strarr_sub[2])
 		bid, _ := strconv.Atoi(strarr_sub[3])
@@ -144,6 +145,7 @@ func processTask(idx int) {
 		}
 
 		Excute(str_task_key, idx)
+
 	}
 }
 
@@ -229,6 +231,7 @@ func excuteSql(str_sql string, idx int, str_task_key string) {
 
 func Excute(str_task_key string, idx int) {
 	str_sql_del, str_sql_insert, isok := genSQL(str_task_key)
+
 	if isok == false {
 		//logger_err.Println("genSQL err ! ",str_task_key,str_sql_del, str_sql_insert, isok, str_sql_del2, str_sql_insert2)
 		return
@@ -246,7 +249,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	initmylog()
 	initmysql()
-	count = 32
+	count = 1
 
 	for i := 0; i < count; i++ {
 		task_ch = append(task_ch, make(chan string, 300000))

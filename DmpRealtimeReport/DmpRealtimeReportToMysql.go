@@ -3,8 +3,9 @@ package main
 //  localhost:8041/set?key=urlencode(BASE^2017-01-19^2^2^2^2)
 import (
 	"database/sql"
-	//"encoding/base64"
+	"encoding/base64"
 	"fmt"
+	"hash/crc32"
 	"log"
 	"net/http"
 	"os"
@@ -99,24 +100,42 @@ func addTask(writer http.ResponseWriter, req *http.Request) {
 
 	prara_map := make(map[string]string)
 	paraURI(req.URL.String(), &prara_map)
-	str_redis_key := prara_map["key"]
+	//str_redis_key := prara_map["key"]
 	//只有符合格式规则，才加入task
-	var strarr []string = strings.Split(str_redis_key, "^")
-	if len(strarr) < 6 {
-		return
-	} else {
 
-		hash_value, _ := strconv.Atoi(prara_map["key"])
-		//n := len(str_redis_key)
-		idx := hash_value % count
-		//task_key = str_redis_key
-		task_ch[idx] <- string(str_redis_key)
-		end_time := time.Now().UnixNano()
-		fmt.Fprintln(writer, "ok use time:", (end_time-start_time)/1000000, "ms")
+	str_key_list_all := prara_map["key"]
+	var strarr []string = strings.Split(str_key_list_all, ",")
+	var strarr_sub []string
+	//var hash_value int
+	n := len(strarr)
+	for i := 0; i < n; i++ {
+		task_key, _ := base64.StdEncoding.DecodeString(strarr[i])
+		str_task_key := string(task_key)
+		strarr_sub = strings.Split(str_task_key, "^")
+		did, _ := strconv.Atoi(strarr_sub[2])
+		bid, _ := strconv.Atoi(strarr_sub[3])
+		pid, _ := strconv.Atoi(strarr_sub[4])
+		cid, _ := strconv.Atoi(strarr_sub[5])
+		if strarr_sub[0] == "BASE" && len(strarr_sub) == 6 && did > 0 && bid > 0 && pid > 0 && cid > 0 {
+			hash_value := getCrc(str_task_key)
+			idx := int(hash_value) % count
+			task_ch[idx] <- str_task_key
+		}
 	}
+	end_time := time.Now().UnixNano()
+	fmt.Fprintln(writer, "ok use time:", (end_time-start_time)/1000000, "ms")
 	return
 }
 
+// 返回key的crc32
+func getCrc(key string) uint32 {
+	if len(key) < 64 {
+		var scratch [64]byte
+		copy(scratch[:], key)
+		return crc32.ChecksumIEEE(scratch[:len(key)])
+	}
+	return crc32.ChecksumIEEE([]byte(key))
+}
 func processTask(idx int) {
 	for {
 		str_task_key, ok := <-task_ch[idx]

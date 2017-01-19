@@ -88,7 +88,7 @@ func requestHttp(str_task_key string) bool {
 	hv := getCrc(str_task_key)
 	str_hv := strconv.Itoa(int(hv))
 	str_b64 := base64.StdEncoding.EncodeToString([]byte(str_task_key))
-	str_url := "http://mysql.behe.com:8041/set?hv=" + str_hv + "&tsk=" + str_b64
+	str_url := "http://localhost:8041/set?hv=" + str_hv + "&key=" + str_b64
 	resp, err := conn_http.Get(str_url)
 	if err != nil {
 		//blog(" ERR1:")
@@ -515,6 +515,8 @@ func updateMap2Redis(idx int, rec_time int64) {
 		} else {
 			//blog(" debug click_num = 0")
 		}
+		// 发起一个http的请求
+		requestHttp(redis_key)
 	}
 	g_recored[idx].m_record = make(map[string]*reportInfo)
 	//blog(" func updateMap2Redis end")

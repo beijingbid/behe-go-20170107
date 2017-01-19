@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bufio"
+	//"bufio"
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
@@ -9,13 +9,15 @@ import (
 	"flag"
 	"fmt"
 	"hash/crc32"
-	"io"
+	//"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
-	//"os"
-	"os/exec"
+	"os"
+	//"os/exec"
 	//"os/signal"
+	"math/rand"
 	"runtime"
 	"strconv"
 	"strings"
@@ -39,6 +41,7 @@ type reportInfo struct {
 }
 
 var log_resource string
+var logFileName = flag.String("log", "DmpReaitimeReport.log", "Log file name")
 
 type RecoredSet struct {
 	m_record      map[string]*reportInfo
@@ -87,6 +90,7 @@ func requestHttp(str_task_key string) bool {
 	str_url := "http://mysql.behe.com:8041/set?hv=" + str_hv + "&tsk=" + str_b64
 	resp, err := conn_http.Get(str_url)
 	if err != nil {
+		blog(" ERR1:")
 		fmt.Println("Err1:", err)
 		return false
 	}
@@ -94,6 +98,7 @@ func requestHttp(str_task_key string) bool {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		blog("Err2:")
 		fmt.Println("Err2:", err, "body:", body)
 		return false
 	}
@@ -143,6 +148,7 @@ func getMd5(key string) string {
 }
 
 func initRecoredSet() {
+	blog(" func initRecoredSet start")
 	var v RecoredSet
 	var v1 RecoredSet
 	v.m_record = make(map[string]*reportInfo)
@@ -151,6 +157,7 @@ func initRecoredSet() {
 	g_recored = append(g_recored, v1)
 	rec_idx = 0
 	recordset_size = 2
+	blog(" func initRecoredSet end")
 }
 
 func getCrc(key string) uint32 {
@@ -162,48 +169,101 @@ func getCrc(key string) uint32 {
 	return crc32.ChecksumIEEE([]byte(key))
 }
 
+// 管道数量
 func initTaskCh() {
-	count = 32
+	blog(" func initTaskCh start")
+	count = 3
 	for i := 0; i < count; i++ {
 		task_ch = append(task_ch, make(chan string, 300000))
-
+		blog(" run task_ch " + strconv.Itoa(i))
 	}
+	blog(" func initTaskCh end")
+}
+func create_demo() string {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rn := r.Intn(6)
+	timestamp := time.Now().Unix()
+
+	demo_log := ""
+	if rn == 3 {
+		demo_log += sep_str + "3"
+
+	} else if rn == 5 {
+		demo_log += sep_str + "5"
+
+	} else if rn == 4 {
+		demo_log += sep_str + "4"
+
+	} else {
+		demo_log += sep_str + strconv.Itoa(rn)
+	}
+	demo_log += sep_str + strconv.FormatInt(timestamp, 10)
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	demo_log += sep_str + strconv.Itoa(r.Intn(6))
+	blog(" demo_log " + demo_log)
+	return demo_log
 }
 
 func fillTask_syslog() {
-	cmd := exec.Command("cat", "dsp_pipe_count")
+	blog(" func fillTask_syslog start")
+	/*cmd := exec.Command("cat", "dsp_pipe_count")
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Start()
 	inputReader := bufio.NewReader(stdout)
+	*/
 	for {
-		inputString, readerError := inputReader.ReadString('\n')
-		if readerError == io.EOF {
-			time.Sleep(1 * time.Second)
-			stdout.Close()
-			cmd = exec.Command("cat", "dsp_pipe_count")
-			stdout, _ = cmd.StdoutPipe()
-			cmd.Start()
-			inputReader = bufio.NewReader(stdout)
-			continue
-		}
+		/*
+			inputString, readerError := inputReader.ReadString('\n')
+			if readerError == io.EOF {
+				time.Sleep(1 * time.Second)
+				stdout.Close()
+				cmd = exec.Command("cat", "dsp_pipe_count")
+				stdout, _ = cmd.StdoutPipe()
+				cmd.Start()
+				inputReader = bufio.NewReader(stdout)
+				continue
+			}*/
+		time.Sleep(1 * time.Second)
+		inputString := create_demo()
 		task_ch[getCrc(inputString)%uint32(count)] <- inputString
 	}
+	blog(" func fillTask_syslog end")
 }
 
 func processTask(idx int) {
+	blog(" func processTask start")
 	for {
 		str_log, ok := <-task_ch[idx]
 		if ok == false {
+			blog("task queue empty!")
 			fmt.Println("task queue empty!")
 		}
 		Excute(str_log, idx)
 	}
+	blog(" func processTask end")
 }
 
 func Excute(str_log string, idx int) {
 	str_log = strings.Replace(str_log, "\n", "", 1)
 	str_log = strings.Replace(str_log, "\r", "", 1)
 	str_log = strings.Replace(str_log, "\t", "", 1)
+	blog(" Excute log " + str_log)
 	var log_arr []string = strings.Split(str_log, sep_str)
 	if len(log_arr) > 2 {
 		if (log_arr[1] == "4") && (len(log_arr) >= 15) {
@@ -213,6 +273,7 @@ func Excute(str_log string, idx int) {
 		} else if (log_arr[1] == "5") && (len(log_arr) >= 15) {
 			view_process(&log_arr)
 		}
+		blog(" func Excute " + log_arr[1])
 	}
 }
 
@@ -372,6 +433,8 @@ func raSetRecord(strkey , did,bid,pid,cid string) {
 }
 */
 func updateRecord() {
+
+	blog(" func updateRecord start")
 	record_timestamp := time.Now().Unix()
 	for {
 		time.Sleep(30 * time.Second)
@@ -388,9 +451,11 @@ func updateRecord() {
 		updateMap2Redis(old_rec_idx, time_sep)
 
 	}
+	blog(" func updateRecord end")
 }
 
 func updateMap2Redis(idx int, rec_time int64) {
+	blog(" func updateMap2Redis start")
 	redis_conn := pools_redis[idx].Get()
 	defer redis_conn.Close()
 	//now_timestamp := time.Now().Unix()
@@ -398,10 +463,12 @@ func updateMap2Redis(idx int, rec_time int64) {
 		//var strarr []string = strings.Split(redis_key, "^")
 		res, err := redis_conn.Do("HMSET", redis_key, "did", rpinfo.did, "bid", rpinfo.bid, "pid", rpinfo.pid, "cid", rpinfo.cid)
 		if err != nil {
+			blog("ErrHs:")
 			fmt.Println("ErrHs:", res, "HMSET", redis_key, "did", rpinfo.did, "bid", rpinfo.bid, "pid", rpinfo.pid, "cid", rpinfo.cid)
 		}
 		res, err = redis_conn.Do("EXPIRE", redis_key, 172800)
 		if err != nil {
+			blog("ErrHs:")
 			fmt.Println("ErrHs:", res, "EXPIRE", redis_key, 172800)
 		}
 
@@ -422,6 +489,7 @@ func updateMap2Redis(idx int, rec_time int64) {
 		}
 	}
 	g_recored[idx].m_record = make(map[string]*reportInfo)
+	blog(" func updateMap2Redis end")
 }
 
 func isSameDay(timestamp1 int, timestamp2 int) bool {
@@ -437,25 +505,43 @@ func isSameDay(timestamp1 int, timestamp2 int) bool {
 	}
 }
 
+// 休眠时间
 func loadsavetask() {
 	for {
 		loadfile()
-		time.Sleep(3600 * time.Second)
+		time.Sleep(60 * time.Second)
 	}
 }
 
 //发送保存数据的任务
 func loadfile() {
+	blog(" func loadfile")
 	/*
 		blacklistip_map_lock.Lock()
 		blacklistip_map = make(map[string]int)
 		blacklistip_map_lock.Unlock()*/
 }
 
+func blog(str string) {
+
+	logFile, logErr := os.OpenFile(*logFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
+	if logErr != nil {
+		fmt.Println("Fail to find", *logFile, "cServer start Failed")
+		os.Exit(1)
+	}
+	log.SetOutput(logFile)
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
+	log.SetPrefix("[Info]")
+	//write log
+	log.Printf(" " + str)
+}
+
 func main() {
+	blog(" func main start")
 	go loadsavetask()
 	flag.Parse()
-	log_resource := flag.Arg(1)
+	//log_resource := flag.Arg(1)
 	pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 	pools_redis_click = append(pools_redis_click, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 
@@ -463,15 +549,17 @@ func main() {
 	var quit chan int
 	initRecoredSet()
 	initTaskCh()
-	if log_resource == "syslog" {
-		go fillTask_syslog()
+	go fillTask_syslog()
+	/*if log_resource == "syslog" {
+
 	} else {
 		//go fillTask_kafka()
-	}
+	}*/
 	for i := 0; i < count; i++ {
 		go processTask(i)
 	}
 	go updateRecord()
 
+	blog(" func main end")
 	<-quit
 }

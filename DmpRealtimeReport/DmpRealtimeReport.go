@@ -173,7 +173,7 @@ func getCrc(key string) uint32 {
 // 管道数量
 func initTaskCh() {
 	//blog(" func initTaskCh start")
-	count = 1
+	count = 32
 	for i := 0; i < count; i++ {
 		task_ch = append(task_ch, make(chan string, 300000))
 		//blog(" run task_ch " + strconv.Itoa(i))
@@ -199,10 +199,10 @@ func create_demo() string {
 		demo_log += sep_str + "4"
 	}
 	demo_log += sep_str + strconv.FormatInt(timestamp, 10)
-	demo_log += sep_str + strconv.FormatInt(RandInt64(1, 3), 10)
-	demo_log += sep_str + strconv.FormatInt(RandInt64(1, 3), 10)
-	demo_log += sep_str + strconv.FormatInt(RandInt64(1, 3), 10)
-	demo_log += sep_str + strconv.FormatInt(RandInt64(1, 3), 10)
+	demo_log += sep_str + strconv.FormatInt(RandInt64(111, 115), 10)
+	demo_log += sep_str + strconv.FormatInt(RandInt64(111, 115), 10)
+	demo_log += sep_str + strconv.FormatInt(RandInt64(111, 115), 10)
+	demo_log += sep_str + strconv.FormatInt(RandInt64(111, 115), 10)
 	demo_log += sep_str + " "
 	demo_log += sep_str + " "
 	demo_log += sep_str + " "
@@ -456,7 +456,7 @@ func updateRecord() {
 	//blog(" func updateRecord start")
 	record_timestamp := time.Now().Unix()
 	for {
-		time.Sleep(10 * time.Second)
+		time.Sleep(30 * time.Second)
 		old_rec_idx := rec_idx
 		shift_g_recored_lock.Lock()
 		if rec_idx == 0 {
@@ -480,7 +480,7 @@ func updateMap2Redis(idx int, rec_time int64) {
 	//now_timestamp := time.Now().Unix()
 	for redis_key, rpinfo := range g_recored[idx].m_record {
 		//var strarr []string = strings.Split(redis_key, "^")
-		res, err := redis_conn.Do("HMSET", redis_key, "view_num")
+		/*res, err := redis_conn.Do("HMSET", redis_key, "view_num")
 		if err != nil {
 			//blog("ErrHs:")
 			fmt.Println("ErrHs:", res, "HMSET", redis_key, "view_num")
@@ -490,11 +490,11 @@ func updateMap2Redis(idx int, rec_time int64) {
 		if err != nil {
 			//blog("ErrHs:")
 			fmt.Println("ErrHs:", res, "HMSET", redis_key, "click_num")
-		}
-		res, err = redis_conn.Do("EXPIRE", redis_key, 172800)
+		}*/
+		res, err := redis_conn.Do("EXPIRE", redis_key, 172800)
 		if err != nil {
 			//blog("ErrHs:")
-			fmt.Println("ErrHs:", res, "EXPIRE", redis_key, 172800)
+			fmt.Println("ErrHs: ", res, "EXPIRE", redis_key, 172800)
 		}
 
 		var tmp_num int64
@@ -537,10 +537,11 @@ func isSameDay(timestamp1 int, timestamp2 int) bool {
 func RandInt64(min, max int64) int64 {
 	maxBigInt := big.NewInt(max)
 	i, _ := rand.Int(rand.Reader, maxBigInt)
-	if i.Int64() < min {
-		RandInt64(min, max)
+	iInt64 := i.Int64()
+	if iInt64 < min {
+		iInt64 = RandInt64(min, max) //应该用参数接一下
 	}
-	return i.Int64()
+	return iInt64
 }
 
 // 休眠时间

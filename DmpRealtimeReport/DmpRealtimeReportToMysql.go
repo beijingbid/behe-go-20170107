@@ -199,7 +199,7 @@ func genSQL(str_task_key string) (string, string, bool) {
 		return "", "", false
 	}
 
-	del_sql := "delete from campaign_realtime WHERE 1 and reportDate = '" + strarr[1] + "' and departmentId = " + strarr[2] + "' and brandId = " + strarr[3] + "' and productId = " + strarr[4] + "' and campaignId = " + strarr[5] + ";"
+	del_sql := "delete from campaign_realtime WHERE 1 and reportDate = '" + strarr[1] + "' and departmentId = '" + strarr[2] + "' and brandId = '" + strarr[3] + "' and productId = '" + strarr[4] + "' and campaignId = '" + strarr[5] + "';"
 	insert_sql := "insert into campaign_realtime (`id`, `departmentId`, `brandId`, `productId`, `campaignId`, `reportDate`, `pv`, `click`) values(NULL,'" + strarr[2] + "','" + strarr[3] + "','" + strarr[4] + "','" + strarr[5] + "','" + strarr[1] + "','" + view + "','" + click + "')"
 
 	return del_sql, insert_sql, true

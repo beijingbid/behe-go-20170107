@@ -60,7 +60,7 @@ func initmylog() {
 
 func initmysql() {
 	var err error
-	db, err = sql.Open("mysql", "root:123456@(localhost:3306)/test?charset=utf8")
+	db, err = sql.Open("mysql", "root:123456@(localhost:3306)/dmp?charset=utf8")
 	if err != nil {
 		fmt.Println("Connect Mysql err:", err)
 		return
@@ -118,8 +118,10 @@ func addTask(writer http.ResponseWriter, req *http.Request) {
 		pid, _ := strconv.Atoi(strarr_sub[4])
 		cid, _ := strconv.Atoi(strarr_sub[5])
 		if strarr_sub[0] == "BASE" && len(strarr_sub) == 6 && did > 0 && bid > 0 && pid > 0 && cid > 0 {
-			hash_value := getCrc(str_task_key)
-			idx := int(hash_value) % count
+			//idx := int(getCrc(str_task_key) % unit(count))
+			//idx := int(getCrc(str_task_key) % 32)
+			idx := getCrcn(str_task_key, count)
+			//logger_err.Println(" debug task in ", str_task_key, " idx = ", strconv.Itoa(idx))
 			task_ch[idx] <- str_task_key
 		}
 	}
@@ -137,12 +139,25 @@ func getCrc(key string) uint32 {
 	}
 	return crc32.ChecksumIEEE([]byte(key))
 }
+
+// 返回key的crc32
+func getCrcn(key string, n int) int {
+	crcv := int(getCrc(key))
+	crcvs := strconv.Itoa(crcv)
+	crcvsi, _ := strconv.Atoi(crcvs)
+	if crcvsi < 0 {
+		crcvsi = -1 * crcvsi
+	}
+	return crcvsi % n
+}
 func processTask(idx int) {
+	//logger_err.Println(" debug call Excute idx=", idx)
 	for {
 		str_task_key, ok := <-task_ch[idx]
 		if ok == false {
 			fmt.Println("task queue empty!")
 		}
+		//logger_err.Println(" debug task out ", str_task_key, " idx = ", strconv.Itoa(idx))
 
 		Excute(str_task_key, idx)
 
@@ -230,10 +245,12 @@ func excuteSql(str_sql string, idx int, str_task_key string) {
 }
 
 func Excute(str_task_key string, idx int) {
+	//logger_err.Println(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
 	str_sql_del, str_sql_insert, isok := genSQL(str_task_key)
+	//logger_err.Println(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
 
 	if isok == false {
-		//logger_err.Println("genSQL err ! ",str_task_key,str_sql_del, str_sql_insert, isok, str_sql_del2, str_sql_insert2)
+		logger_err.Println("genSQL err ! ", str_task_key, str_sql_del, str_sql_insert, isok)
 		return
 	}
 
@@ -249,7 +266,7 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	initmylog()
 	initmysql()
-	count = 1
+	count = 32
 
 	for i := 0; i < count; i++ {
 		task_ch = append(task_ch, make(chan string, 300000))

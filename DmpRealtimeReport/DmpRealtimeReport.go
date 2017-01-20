@@ -456,7 +456,8 @@ func updateRecord() {
 	//blog(" func updateRecord start")
 	record_timestamp := time.Now().Unix()
 	for {
-		time.Sleep(30 * time.Second)
+		// 30秒刷新数据
+		time.Sleep(10 * time.Second)
 		old_rec_idx := rec_idx
 		shift_g_recored_lock.Lock()
 		if rec_idx == 0 {

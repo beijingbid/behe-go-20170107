@@ -60,7 +60,7 @@ func initmylog() {
 
 func initmysql() {
 	var err error
-	db, err = sql.Open("mysql", "root:123456@(localhost:3306)/dmp?charset=utf8")
+	db, err = sql.Open("mysql", "root:123456@(127.0.0.1:3306)/dmp?charset=utf8")
 	if err != nil {
 		fmt.Println("Connect Mysql err:", err)
 		return
@@ -237,7 +237,7 @@ func excuteSql(str_sql string, idx int, str_task_key string) {
 	defer stmt.Close()
 	res, err_r := stmt.Exec()
 	if err_r != nil {
-		logger_err.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Err:", err_r)
+		logger_err.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Exec.Err:", err_r)
 		return
 	}
 	logger_task.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Res:", res)

@@ -7,3 +7,10 @@ killall DmpRealtimeToMysql
 usleep 10000000
 ./DmpRealtimeToMysql &
 ./DmpRealtimeReport &
+
+
+
+
+# find /data/monitorlogs/ -mtime +100 -name "*.log" -exec rm -rf {} \;
+
+

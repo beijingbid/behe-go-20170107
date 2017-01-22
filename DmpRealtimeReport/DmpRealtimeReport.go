@@ -297,71 +297,74 @@ func processTask(idx int) {
 		if ok == false {
 			blog("task queue empty![" + strconv.Itoa(idx) + "]")
 			fmt.Println("task queue empty!")
-		}else{
+		} else {
 			Excute(str_log, idx)
 			blog(" call func Excute [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 		}
+	}
 }
 
+// 格式化日志，去掉日志的头部信息
 func formatLog(str string) string {
-	if strings.Index(str,"[INFO]") > 0{
-		return Substr(str,strings.Index(str,"[INFO]")+7,strings.Count(str))
-	}else{
+	if strings.Index(str, "[INFO]") > 0 {
+		return Substr(str, strings.Index(str, "[INFO]")+7, strings.Count(str, ""))
+	} else {
 		return str
 	}
-	
+
 }
+
 func Substr(str string, start, length int) string {
-    rs := []rune(str)
-    rl := len(rs)
-    end := 0
-        
-    if start < 0 {
-        start = rl - 1 + start
-    }
-    end = start + length
-    
-    if start > end {
-        start, end = end, start
-    }
-    
-    if start < 0 {
-        start = 0
-    }
-    if start > rl {
-        start = rl
-    }
-    if end < 0 {
-        end = 0
-    }
-    if end > rl {
-        end = rl
-    }
-    return string(rs[start:end])
+	rs := []rune(str)
+	rl := len(rs)
+	end := 0
+
+	if start < 0 {
+		start = rl - 1 + start
+	}
+	end = start + length
+
+	if start > end {
+		start, end = end, start
+	}
+
+	if start < 0 {
+		start = 0
+	}
+	if start > rl {
+		start = rl
+	}
+	if end < 0 {
+		end = 0
+	}
+	if end > rl {
+		end = rl
+	}
+	return string(rs[start:end])
 }
 func Excute(str_log string, idx int) {
 	str_log = strings.Replace(str_log, "\n", "", 1)
 	str_log = strings.Replace(str_log, "\r", "", 1)
 	str_log = strings.Replace(str_log, "\t", "", 1)
-	
+
 	str_log = formatLog(str_log)
 	////blog(" Excute log " + str_log)
-	var log_arr []string = strings.Split(log_arr_new[7], sep_str)
+	var log_arr []string = strings.Split(str_log, sep_str)
 	if len(log_arr) > 2 {
 		if (log_arr[0] == "4") && (len(log_arr) >= 15) {
 			click_process(&log_arr)
-			blog(" call func click_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
+			//blog(" call func click_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 		} else if (log_arr[0] == "3") && (len(log_arr) >= 15) {
 			view_process(&log_arr)
-			blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
+			//blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 
 		} else if (log_arr[0] == "5") && (len(log_arr) >= 15) {
 			view_process(&log_arr)
-			blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
+			//blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 
-		}else{
-		blog(" call execute none ("+log_arr[0]+") len = ("+strconv.Itoa(len(log_arr))+") [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
-	}
+		} else {
+			//blog(" call execute none ("+log_arr[0]+") len = ("+strconv.Itoa(len(log_arr))+") [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
+		}
 		////blog(" func Excute " + log_arr[1])
 	}
 }
@@ -415,7 +418,7 @@ func view_process(strarr *[]string) {
 		//基础报表-------------------
 		tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
 		viewSetRecord(tb_base_key, did, bid, pid, cid)
-		blog(" BASE view str_today "+str_today+" did " + did + " bid " + bid + " pid " + pid + " cid " + cid )
+		blog(" BASE view str_today " + str_today + " did " + did + " bid " + bid + " pid " + pid + " cid " + cid)
 
 		//---------------------------------
 		shift_g_recored_lock.RUnlock()
@@ -662,7 +665,7 @@ func blog(str string) {
 }
 
 func main() {
-	blog(" func main start")
+	//blog(" func main start")
 	go loadsavetask()
 	flag.Parse()
 	//log_resource := flag.Arg(1)
@@ -684,6 +687,6 @@ func main() {
 	}
 	go updateRecord()
 
-	blog(" func main end")
+	//blog(" func main end")
 	<-quit
 }

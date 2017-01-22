@@ -283,7 +283,7 @@ func fillTask_syslog() {
 		task_ch[idx] <- inputString
 		//logger_task.Println(" get inputString:")
 
-		blog(" get inputString " + strings.Replace(inputString, sep_str, ",", -1) + " into task " + strconv.FormatUint(uint64(idx), 10))
+		//blog(" get inputString " + strings.Replace(inputString, sep_str, ",", -1) + " into task " + strconv.FormatUint(uint64(idx), 10))
 		//task_ch[getCrc(inputString)%uint32(count)] <- inputString
 
 	}
@@ -404,21 +404,21 @@ func view_process(strarr *[]string) {
 	bid := (*strarr)[3]
 	pid := (*strarr)[4]
 	cid := (*strarr)[5]
-
-	timestamp, _ := strconv.Atoi((*strarr)[1])
-	str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02")
+	str_today := (*strarr)[1]
+	//timestamp, _ := strconv.Atoi((*strarr)[1])
+	//str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02 15:04:05")
 	//str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
 	//str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
 	//blog(" debug from view_process  did =" + did + " bid =" + bid + " pid =" + pid + " cid =" + cid)
 	if str_today == "1970-01-01" {
-		blog(" str_today err")
+		//blog(" str_today err")
 	} else {
 		shift_g_recored_lock.RLock()
 
 		//基础报表-------------------
 		tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
 		viewSetRecord(tb_base_key, did, bid, pid, cid)
-		blog(" BASE view str_today " + str_today + " did " + did + " bid " + bid + " pid " + pid + " cid " + cid)
+		//blog(" BASE view str_today " + str_today + " did " + did + " bid " + bid + " pid " + pid + " cid " + cid)
 
 		//---------------------------------
 		shift_g_recored_lock.RUnlock()
@@ -492,8 +492,9 @@ func click_process(strarr *[]string) {
 	bid := (*strarr)[3]
 	pid := (*strarr)[4]
 	cid := (*strarr)[5]
-	timestamp, _ := strconv.Atoi((*strarr)[1])
-	str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02")
+	str_today := (*strarr)[1]
+	//timestamp, _ := strconv.Atoi((*strarr)[1])
+	//str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02 15:04:05")
 	//str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
 	//str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
 	if str_today == "1970-01-01" {
@@ -543,7 +544,7 @@ func updateRecord() {
 	record_timestamp := time.Now().Unix()
 	for {
 		// 30秒刷新数据
-		time.Sleep(10 * time.Second)
+		time.Sleep(30 * time.Second)
 		old_rec_idx := rec_idx
 		shift_g_recored_lock.Lock()
 		if rec_idx == 0 {

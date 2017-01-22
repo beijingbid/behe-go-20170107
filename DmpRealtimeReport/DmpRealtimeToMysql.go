@@ -189,6 +189,8 @@ func genSQL(str_task_key string) (string, string, bool) {
 	if (strarr[2] == "0") || (strarr[3] == "0") || (strarr[4] == "0") || (strarr[5] == "0") {
 		return "", "", false
 	}
+	timestamp, _ := strconv.Atoi(strarr[1])
+	str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02 15:04:05")
 	/*task_rec,isok:=getTaskInfo(str_task_key)
 	if isok ==false{
 		return "","",false
@@ -211,13 +213,8 @@ func genSQL(str_task_key string) (string, string, bool) {
 		click = "0"
 	}
 
-	var date_arr []string = strings.Split(strarr[1], "-")
-	if len(date_arr) != 3 {
-		return "", "", false
-	}
-
-	del_sql := "delete from campaign_realtime WHERE 1 and reportDate = '" + strarr[1] + "' and departmentId = '" + strarr[2] + "' and brandId = '" + strarr[3] + "' and productId = '" + strarr[4] + "' and campaignId = '" + strarr[5] + "';"
-	insert_sql := "insert into campaign_realtime (`id`, `departmentId`, `brandId`, `productId`, `campaignId`, `reportDate`, `pv`, `click`) values(NULL,'" + strarr[2] + "','" + strarr[3] + "','" + strarr[4] + "','" + strarr[5] + "','" + strarr[1] + "','" + view + "','" + click + "')"
+	del_sql := "delete from campaign_realtime WHERE 1 and reportDate = '" + str_today + "' and departmentId = '" + strarr[2] + "' and brandId = '" + strarr[3] + "' and productId = '" + strarr[4] + "' and campaignId = '" + strarr[5] + "';"
+	insert_sql := "insert into campaign_realtime (`id`, `departmentId`, `brandId`, `productId`, `campaignId`, `reportDate`, `pv`, `click`) values(NULL,'" + strarr[3] + "','" + strarr[3] + "','" + strarr[4] + "','" + strarr[5] + "','" + str_today + "','" + view + "','" + click + "')"
 
 	return del_sql, insert_sql, true
 

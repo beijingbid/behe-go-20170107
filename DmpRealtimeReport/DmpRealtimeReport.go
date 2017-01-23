@@ -33,7 +33,9 @@ import (
 //topic list
 var serverMap = make(map[int]string)
 var serverid string
-
+var (
+	configFile = flag.String("configfile", "dmpserver.conf", "General configuration file")
+)
 type reportInfo struct {
 	did string
 	bid string
@@ -89,7 +91,6 @@ var conn_http *http.Client = &http.Client{
 }
 
 func parseconf() {
-	configFile := "dmpserver.conf"
 	//set config file std
 	cfg, err := config.ReadDefault(*configFile)
 	if err != nil {

@@ -30,6 +30,10 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
+//topic list
+var serverMap = make(map[int]string)
+var serverid string
+
 type reportInfo struct {
 	did string
 	bid string
@@ -84,6 +88,49 @@ var conn_http *http.Client = &http.Client{
 	},
 }
 
+func parseconf() {
+	configFile := "dmpserver.conf"
+	//set config file std
+	cfg, err := config.ReadDefault(*configFile)
+	if err != nil {
+		log.Fatalf("Fail to find", *configFile, err)
+	}
+	//set config file std End
+
+	//Initialized topic from the configuration
+	if cfg.HasSection("server") {
+		section, err := cfg.SectionOptions("server")
+		if err == nil {
+			i := 0
+			fmt.Println("section ", section)
+			for _, v := range section {
+				options, err := cfg.String("server", v)
+				//fmt.Println("serverMap key=[", i, "] and options=", options)
+				if err == nil {
+					serverMap[i] = options
+				}
+				i++
+			}
+		}
+	}
+
+	if cfg.HasSection("id") {
+		section, err := cfg.SectionOptions("id")
+		if err == nil {
+			for _, v := range section {
+				options, err := cfg.String("id", v)
+				if err == nil {
+					serverid = options
+				}
+			}
+		}
+	}
+	//Initialized topic from the configuration END
+
+	//fmt.Println("serverMap = ", serverMap)
+	//fmt.Println("serverid = ", serverid)
+
+}
 func initmylog() {
 	task_log_file := "./Report.log"
 	tasklogfile, err := os.OpenFile(task_log_file, os.O_RDWR|os.O_CREATE, 0)
@@ -276,6 +323,7 @@ func fillTask_syslog() {
 			//inputString = create_demo()
 			//blog(" call func create_demo and result = " + inputString)
 		}
+		inputString = formatLog(inputString)
 		idx := getCrcn(inputString, count)
 		if idx < 0 {
 			//      idx = -1 * idx
@@ -290,16 +338,66 @@ func fillTask_syslog() {
 	//blog(" func fillTask_syslog end")
 }
 
+// kafka
+func fillTask_kafka() {
+	consumer, err := kafka.NewConsumer([]string{"kafka-0001:9092", "kafka-0002:9092", "kafka-0003:9092", "kafka-0004:9092", "kafka-0005:9092", "kafka-0006:9092", "kafka-0007:9092", "kafka-0008:9092"}, nil)
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+
+	defer func() {
+		if err := consumer.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	partitionConsumer, err := consumer.ConsumePartition("adrtlog", 0, kafka.OffsetNewest)
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+
+	defer func() {
+		if err := partitionConsumer.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	// Trap SIGINT to trigger a shutdown.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+
+ConsumerLoop:
+	for {
+		select {
+		case msg := <-partitionConsumer.Messages():
+			//fmt.Println("Consumed message offset ", msg.Offset, string(msg.Value))
+			str_log := formatLog(string(msg.Value))
+			// 这里 做cid 哈希的判断
+			var log_arr []string = strings.Split(str_log, sep_str)
+			var s_idx := getCrc(log_arr[5])% uint32(len(serverMap))
+			if serverMap[s_idx] == serverid{
+				idx := getCrc(str_log) % uint32(count)
+				task_ch[idx] <- inputString				
+			}
+			//
+		case <-signals:
+			break ConsumerLoop
+		}
+	}
+}
+
 func processTask(idx int) {
 	//blog(" func processTask start")
 	for {
 		str_log, ok := <-task_ch[idx]
 		if ok == false {
-			blog("task queue empty![" + strconv.Itoa(idx) + "]")
-			fmt.Println("task queue empty!")
+			//blog("task queue empty![" + strconv.Itoa(idx) + "]")
+			//fmt.Println("task queue empty!")
 		} else {
 			Excute(str_log, idx)
-			blog(" call func Excute [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
+			//blog(" call func Excute [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 		}
 	}
 }
@@ -347,7 +445,7 @@ func Excute(str_log string, idx int) {
 	str_log = strings.Replace(str_log, "\r", "", 1)
 	str_log = strings.Replace(str_log, "\t", "", 1)
 
-	str_log = formatLog(str_log)
+	//str_log = formatLog(str_log)
 	////blog(" Excute log " + str_log)
 	var log_arr []string = strings.Split(str_log, sep_str)
 	if len(log_arr) > 2 {
@@ -665,11 +763,14 @@ func blog(str string) {
 	log.Printf(" " + str)
 }
 
+// 传入参数 第一个为日志收集类型 (syslog/kafka)
 func main() {
 	//blog(" func main start")
 	go loadsavetask()
 	flag.Parse()
-	//log_resource := flag.Arg(1)
+
+	parseconf()
+	log_resource := flag.Arg(1)
 	pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 	pools_redis_click = append(pools_redis_click, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 
@@ -677,12 +778,11 @@ func main() {
 	var quit chan int
 	initRecoredSet()
 	initTaskCh()
-	go fillTask_syslog()
-	/*if log_resource == "syslog" {
-
+	if log_resource == "syslog" {
+		go fillTask_syslog()
 	} else {
-		//go fillTask_kafka()
-	}*/
+		go fillTask_kafka()
+	}
 	for i := 0; i < count; i++ {
 		go processTask(i)
 	}

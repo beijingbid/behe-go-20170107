@@ -772,7 +772,6 @@ func main() {
 	go loadsavetask()
 	flag.Parse()
 
-	parseconf()
 	log_resource := flag.Arg(1)
 	pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 	pools_redis_click = append(pools_redis_click, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
@@ -782,6 +781,7 @@ func main() {
 	initRecoredSet()
 	initTaskCh()
 	if log_resource == "kafka" {
+		parseconf()
 		go fillTask_kafka()
 	} else {
 		go fillTask_syslog()

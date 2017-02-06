@@ -41,13 +41,13 @@ func newPool(server string) *redis.Pool {
 }
 
 func initmylog() {
-	task_log_file := "./task.log"
+	task_log_file := "./debug.log"
 	tasklogfile, err := os.OpenFile(task_log_file, os.O_RDWR|os.O_CREATE, 0)
 	if err != nil {
 		fmt.Printf("%s\r\n", err.Error())
 		os.Exit(-1)
 	}
-	err_log_file := "./err.log"
+	err_log_file := "./debug.log"
 	errlogfile, err := os.OpenFile(err_log_file, os.O_RDWR|os.O_CREATE, 0)
 	if err != nil {
 		fmt.Printf("%s\r\n", err.Error())
@@ -59,8 +59,41 @@ func initmylog() {
 }
 
 func initmysql() {
-	var err error
-	db, err = sql.Open("mysql", "dmpUser:5a0def138139a60f7a6d868e@(10.100.18.83:3306)/behe_yili_dmp_report_advert?charset=utf8")
+
+	g_Config := make(map[string]string)
+	f, err := os.Open("db.conf")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	rd := bufio.NewReader(f)
+	for {
+		line, err := rd.ReadString('\n')
+		if err != nil || io.EOF == err {
+			break
+		}
+		fmt.Println(line)
+		line = strings.Replace(line, "\r", "", -1)
+		if line == "" {
+			break
+		}
+		substr := line[0:1]
+		if substr == "#" {
+			continue
+		}
+		if strings.Contains(line, ":") {
+			s := strings.Split(line, ":")
+			g_Config[strings.Replace(s[0], " ", "", -1)] = strings.Replace(s[1], " ", "", -1)
+		}
+
+	}
+	fmt.Println(g_Config)
+	//"dmpUser:5a0def138139a60f7a6d868e@(10.100.18.83:3306)/behe_yili_dmp_report_advert?charset=utf8"
+	scfg := g_Config["dbuser"] + ":" + g_Config["dbpassword"] + "@(" + g_Config["dbhost"] + ":" + g_Config["dbport"] + ")/" + g_Config["dbname"] + "?charset=" + g_Config["dbcharset"]
+	scfg = strings.Replace(scfg, "\n", "", -1)
+	scfg = strings.Replace(scfg, "\r", "", -1)
+	db, err = sql.Open("mysql", scfg)
+	//db, err = sql.Open("mysql", "dmpUser:5a0def138139a60f7a6d868e@(10.100.18.83:3306)/behe_yili_dmp_report_advert?charset=utf8")
 	if err != nil {
 		fmt.Println("Connect Mysql err:", err)
 		return

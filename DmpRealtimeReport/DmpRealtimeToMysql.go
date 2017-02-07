@@ -2,10 +2,13 @@ package main
 
 //  localhost:8041/set?key=urlencode(BASE^2017-01-19^2^2^2^2)
 import (
+	"bufio"
 	"database/sql"
 	"encoding/base64"
+	"flag"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -18,12 +21,12 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var logger_task *log.Logger
-var logger_err *log.Logger
+var logFileName = flag.String("log", "debug.log", "Log file name")
 var db *sql.DB
 var pools_redis []*redis.Pool
 var task_ch []chan string
 var count int
+var g_Config = make(map[string]string)
 
 func newPool(server string) *redis.Pool {
 	return &redis.Pool{
@@ -33,34 +36,20 @@ func newPool(server string) *redis.Pool {
 			c, err := redis.Dial("tcp", server)
 			if err != nil {
 				//panic(err.Error())
-				fmt.Println(err.Error())
+				//blog(err.Error())
 			}
 			return c, err
 		},
 	}
 }
 
-func initmylog() {
-	task_log_file := "./debug.log"
-	tasklogfile, err := os.OpenFile(task_log_file, os.O_RDWR|os.O_CREATE, 0)
-	if err != nil {
-		fmt.Printf("%s\r\n", err.Error())
-		os.Exit(-1)
-	}
-	err_log_file := "./debug.log"
-	errlogfile, err := os.OpenFile(err_log_file, os.O_RDWR|os.O_CREATE, 0)
-	if err != nil {
-		fmt.Printf("%s\r\n", err.Error())
-		os.Exit(-1)
-	}
-	logger_task = log.New(tasklogfile, "", 0)
-	logger_err = log.New(errlogfile, "", 0)
+func initMylog() {
 
 }
 
-func initmysql() {
-
-	g_Config := make(map[string]string)
+func initConfig() {
+	//blog("initConfig start")
+	//g_Config := make(map[string]string)
 	f, err := os.Open("db.conf")
 	if err != nil {
 		panic(err)
@@ -72,7 +61,7 @@ func initmysql() {
 		if err != nil || io.EOF == err {
 			break
 		}
-		fmt.Println(line)
+		//blog(line)
 		line = strings.Replace(line, "\r", "", -1)
 		if line == "" {
 			break
@@ -87,22 +76,51 @@ func initmysql() {
 		}
 
 	}
-	fmt.Println(g_Config)
+	if g_Config["dbport"] == "" {
+		g_Config["dbport"] = "3306"
+	}
+}
+
+func initMysql() {
+
+	//blog("initMysql start")
+	//blog(g_Config)
 	//"dmpUser:5a0def138139a60f7a6d868e@(10.100.18.83:3306)/behe_yili_dmp_report_advert?charset=utf8"
 	scfg := g_Config["dbuser"] + ":" + g_Config["dbpassword"] + "@(" + g_Config["dbhost"] + ":" + g_Config["dbport"] + ")/" + g_Config["dbname"] + "?charset=" + g_Config["dbcharset"]
 	scfg = strings.Replace(scfg, "\n", "", -1)
 	scfg = strings.Replace(scfg, "\r", "", -1)
-	db, err = sql.Open("mysql", scfg)
+
+	db, err := sql.Open("mysql", scfg)
 	//db, err = sql.Open("mysql", "dmpUser:5a0def138139a60f7a6d868e@(10.100.18.83:3306)/behe_yili_dmp_report_advert?charset=utf8")
 	if err != nil {
-		fmt.Println("Connect Mysql err:", err)
+		blog("Connect Mysql err:", " err")
 		return
 	} else {
-		fmt.Println("Connect Mysql OK!")
+		blog("Connect Mysql OK!")
 	}
 	db.SetMaxOpenConns(32)
 	db.SetMaxIdleConns(16)
 	db.Ping()
+}
+func initRedis() {
+	//blog("initRedis start")
+
+	//blog(" debug redis conf " + g_Config["redisServerList"])
+	s := strings.Split(g_Config["redisServerList"], ",")
+	//s := "localhost|6379"
+	for i := 0; i < len(s); i++ {
+		sl := strings.Split(s[i], "|")
+		if sl[1] == "" {
+			sl[1] = "6379"
+		}
+		rcfg := sl[0] + ":" + sl[1]
+		rcfg = strings.Replace(rcfg, "\n", "", -1)
+		rcfg = strings.Replace(rcfg, "\r", "", -1)
+		pools_redis = append(pools_redis, newPool(rcfg))
+		//blog(" debug redis conn "+ rcfg)
+	}
+	//pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
+
 }
 
 func paraURI(str_uri string, para_map *map[string]string) {
@@ -129,7 +147,7 @@ func paraURI(str_uri string, para_map *map[string]string) {
 }
 
 func addTask(writer http.ResponseWriter, req *http.Request) {
-	start_time := time.Now().UnixNano()
+	//start_time := time.Now().UnixNano()
 
 	prara_map := make(map[string]string)
 	paraURI(req.URL.String(), &prara_map)
@@ -154,12 +172,12 @@ func addTask(writer http.ResponseWriter, req *http.Request) {
 			//idx := int(getCrc(str_task_key) % unit(count))
 			//idx := int(getCrc(str_task_key) % 32)
 			idx := getCrcn(str_task_key, count)
-			//logger_err.Println(" debug task in ", str_task_key, " idx = ", strconv.Itoa(idx))
+			//blog(" debug task in ", str_task_key, " idx = ", strconv.Itoa(idx))
 			task_ch[idx] <- str_task_key
 		}
 	}
-	end_time := time.Now().UnixNano()
-	fmt.Fprintln(writer, "ok use time:", (end_time-start_time)/1000000, "ms")
+	//end_time := time.Now().UnixNano()
+	//blog(writer, "ok use time:", (end_time-start_time)/1000000, "ms")
 	return
 }
 
@@ -184,13 +202,13 @@ func getCrcn(key string, n int) int {
 	return crcvsi % n
 }
 func processTask(idx int) {
-	//logger_err.Println(" debug call Excute idx=", idx)
+	//blog(" debug call Excute idx=", idx)
 	for {
 		str_task_key, ok := <-task_ch[idx]
 		if ok == false {
-			fmt.Println("task queue empty!")
+			blog("task queue empty!")
 		}
-		//logger_err.Println(" debug task out ", str_task_key, " idx = ", strconv.Itoa(idx))
+		//blog(" debug task out ", str_task_key, " idx = ", strconv.Itoa(idx))
 
 		Excute(str_task_key, idx)
 
@@ -202,7 +220,7 @@ func processTask(idx int) {
 	defer redis_conn.Close()
 	task_rec,err:=redis.StringMap(redis_conn.Do("HGETALL",str_task_key))
 	if err!=nil {
-		fmt.Println("getTaskInfo Err:",click_rec,"HGETALL",str_task_key)
+		blog("getTaskInfo Err:",click_rec,"HGETALL",str_task_key)
 		return task_rec, false
 	}
 	return task_rec, true
@@ -232,7 +250,8 @@ func genSQL(str_task_key string) (string, string, bool) {
 	defer redis_conn.Close()
 	task_rec, err := redis.StringMap(redis_conn.Do("HGETALL", str_task_key))
 	if err != nil {
-		fmt.Println("getTaskInfo Err:", err, "HGETALL", str_task_key)
+		//blog("getTaskInfo Err:", err, "HGETALL", str_task_key)
+		blog("getTaskInfo Err:")
 		return "", "", false
 	}
 
@@ -256,47 +275,71 @@ func genSQL(str_task_key string) (string, string, bool) {
 
 func excuteSql(str_sql string, idx int, str_task_key string) {
 	if len(str_sql) <= 0 {
-		logger_err.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Err: sql size < 0")
+		//blog("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Err: sql size < 0")
+		//blog("Thread id:)
 		return
 	}
 	stmt, err := db.Prepare(str_sql)
 	if err != nil {
-		logger_err.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Err:", err)
+		//blog("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Err:", err)
+		//blog("Sql:"+ str_sql)
 		return
 	}
 	defer stmt.Close()
-	res, err_r := stmt.Exec()
+	_, err_r := stmt.Exec()
 	if err_r != nil {
-		logger_err.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Exec.Err:", err_r)
+		//blog("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Exec.Err:", err_r)
 		return
 	}
-	logger_task.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Res:", res)
+	//logger_task.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Res:", res)
 	return
 }
 
 func Excute(str_task_key string, idx int) {
-	//logger_err.Println(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
+	//blog(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
 	str_sql_del, str_sql_insert, isok := genSQL(str_task_key)
-	//logger_err.Println(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
+	//blog(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
 
 	if isok == false {
-		logger_err.Println("genSQL err ! ", str_task_key, str_sql_del, str_sql_insert, isok)
+		//blog("genSQL err ! ", str_task_key, str_sql_del, str_sql_insert, isok)
 		return
 	}
 
-	//fmt.Println("Thread id:",idx,",Task:",str_task_key,",SqlDel:",str_sql_del)
-	//fmt.Println("Thread id:",idx,",Task:",str_task_key,",SqlIns:",str_sql_insert)
+	//blog("Thread id:",idx,",Task:",str_task_key,",SqlDel:",str_sql_del)
+	//blog("Thread id:",idx,",Task:",str_task_key,",SqlIns:",str_sql_insert)
 	excuteSql(str_sql_del, idx, str_task_key)
 	excuteSql(str_sql_insert, idx, str_task_key)
 	return
 }
+func blog(str ...string) {
+
+	logFile, logErr := os.OpenFile(*logFileName, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0666)
+	if logErr != nil {
+		fmt.Println("Fail to find", *logFile, "cServer start Failed")
+		os.Exit(1)
+	}
+	log.SetOutput(logFile)
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
+	log.SetPrefix("[Info]")
+	//write log
+
+	//timestamp := time.Now().Unix()
+	//tm := time.Unix(timestamp, 0)
+	//log.Printf(tm.Format("2006-01-02 03:04:05 PM "))
+	for i := 0; i < len(str); i++ {
+		log.Printf(" " + str[i])
+	}
+}
 
 func main() {
-	pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	initmylog()
-	initmysql()
+	//initMylog()
+	initConfig()
+	initMysql()
+	initRedis()
 	count = 32
+	blog(" progream start ")
 
 	for i := 0; i < count; i++ {
 		task_ch = append(task_ch, make(chan string, 300000))
@@ -309,6 +352,7 @@ func main() {
 
 	err := http.ListenAndServe(":8041", nil)
 	if err != nil {
-		fmt.Println("Err", err)
+		blog("Err")
 	}
+	blog(" progream end ")
 }

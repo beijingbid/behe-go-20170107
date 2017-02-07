@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	//"os/signal"
+	"os/signal"
 	//"math/rand"
 	"runtime"
 	"strconv"
@@ -26,16 +26,20 @@ import (
 	"sync"
 	"time"
 
-	//kafka "github.com/Shopify/sarama"
+	kafka "github.com/Shopify/sarama"
 	"github.com/garyburd/redigo/redis"
+	"github.com/larspensjo/config"
 )
 
 //topic list
 var serverMap = make(map[int]string)
 var serverid string
+var g_Config = make(map[string]string)
+
 var (
 	configFile = flag.String("configfile", "dmpserver.conf", "General configuration file")
 )
+
 type reportInfo struct {
 	did string
 	bid string
@@ -50,7 +54,7 @@ type reportInfo struct {
 var logger_task *log.Logger
 var logger_err *log.Logger
 var log_resource string
-var logFileName = flag.String("log", "DmpRealtimeReport.log", "Log file name")
+var logFileName = flag.String("log", "debug.log", "Log file name")
 
 type RecoredSet struct {
 	m_record      map[string]*reportInfo
@@ -103,7 +107,7 @@ func parseconf() {
 		section, err := cfg.SectionOptions("server")
 		if err == nil {
 			i := 0
-			fmt.Println("section ", section)
+			//fmt.Println("section ", section)
 			for _, v := range section {
 				options, err := cfg.String("server", v)
 				//fmt.Println("serverMap key=[", i, "] and options=", options)
@@ -132,14 +136,53 @@ func parseconf() {
 	//fmt.Println("serverid = ", serverid)
 
 }
-func initmylog() {
-	task_log_file := "./Report.log"
+
+func initConfig() {
+	//g_Config := make(map[string]string)
+	f, err := os.Open("db.conf")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	rd := bufio.NewReader(f)
+	for {
+		line, err := rd.ReadString('\n')
+		if err != nil || io.EOF == err {
+			break
+		}
+		fmt.Println(line)
+		line = strings.Replace(line, "\r", "", -1)
+		if line == "" {
+			break
+		}
+		substr := line[0:1]
+		if substr == "#" {
+			continue
+		}
+		if strings.Contains(line, ":") {
+			s := strings.Split(line, ":")
+			g_Config[strings.Replace(s[0], " ", "", -1)] = strings.Replace(s[1], " ", "", -1)
+		}
+
+	}
+
+}
+
+func initKafkaConfig() {
+	serverid = g_Config["serverId"]
+	s := strings.Split(g_Config["serverList"], ",")
+	for i := 0; i < len(s); i++ {
+		serverMap[i] = s[i]
+	}
+}
+func initMylog() {
+	task_log_file := "./debug.log"
 	tasklogfile, err := os.OpenFile(task_log_file, os.O_RDWR|os.O_CREATE, 0)
 	if err != nil {
 		fmt.Printf("%s\r\n", err.Error())
 		os.Exit(-1)
 	}
-	err_log_file := "./Report.err.log"
+	err_log_file := "./debug.log"
 	errlogfile, err := os.OpenFile(err_log_file, os.O_RDWR|os.O_CREATE, 0)
 	if err != nil {
 		fmt.Printf("%s\r\n", err.Error())
@@ -377,10 +420,10 @@ ConsumerLoop:
 			str_log := formatLog(string(msg.Value))
 			// 这里 做cid 哈希的判断
 			var log_arr []string = strings.Split(str_log, sep_str)
-			var s_idx := getCrc(log_arr[5])% uint32(len(serverMap))
-			if serverMap[s_idx] == serverid{
+			s_idx := int(getCrc(log_arr[5]) % uint32(len(serverMap)))
+			if serverMap[s_idx] == serverid {
 				idx := getCrc(str_log) % uint32(count)
-				task_ch[idx] <- inputString				
+				task_ch[idx] <- str_log
 			}
 			//
 		case <-signals:
@@ -766,11 +809,10 @@ func blog(str string) {
 
 // 传入参数 第一个为日志收集类型 (syslog/kafka)
 func main() {
-	//blog(" func main start")
+	blog(" func main start")
 	go loadsavetask()
 	flag.Parse()
 
-	parseconf()
 	log_resource := flag.Arg(1)
 	pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 	pools_redis_click = append(pools_redis_click, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
@@ -779,16 +821,19 @@ func main() {
 	var quit chan int
 	initRecoredSet()
 	initTaskCh()
-	if log_resource == "syslog" {
-		go fillTask_syslog()
-	} else {
+	if log_resource == "kafka" {
+		//parseconf()
+		initConfig()
+		initKafkaConfig()
 		go fillTask_kafka()
+	} else {
+		go fillTask_syslog()
 	}
 	for i := 0; i < count; i++ {
 		go processTask(i)
 	}
 	go updateRecord()
 
-	//blog(" func main end")
+	blog(" func main end")
 	<-quit
 }

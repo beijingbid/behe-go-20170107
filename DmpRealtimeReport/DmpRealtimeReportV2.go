@@ -34,6 +34,8 @@ import (
 //topic list
 var serverMap = make(map[int]string)
 var serverid string
+var g_Config = make(map[string]string)
+
 var (
 	configFile = flag.String("configfile", "dmpserver.conf", "General configuration file")
 )
@@ -52,7 +54,7 @@ type reportInfo struct {
 var logger_task *log.Logger
 var logger_err *log.Logger
 var log_resource string
-var logFileName = flag.String("log", "DmpRealtimeReport.log", "Log file name")
+var logFileName = flag.String("log", "debug.log", "Log file name")
 
 type RecoredSet struct {
 	m_record      map[string]*reportInfo
@@ -134,14 +136,53 @@ func parseconf() {
 	//fmt.Println("serverid = ", serverid)
 
 }
-func initmylog() {
-	task_log_file := "./Report.log"
+
+func initConfig() {
+	//g_Config := make(map[string]string)
+	f, err := os.Open("db.conf")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	rd := bufio.NewReader(f)
+	for {
+		line, err := rd.ReadString('\n')
+		if err != nil || io.EOF == err {
+			break
+		}
+		fmt.Println(line)
+		line = strings.Replace(line, "\r", "", -1)
+		if line == "" {
+			break
+		}
+		substr := line[0:1]
+		if substr == "#" {
+			continue
+		}
+		if strings.Contains(line, ":") {
+			s := strings.Split(line, ":")
+			g_Config[strings.Replace(s[0], " ", "", -1)] = strings.Replace(s[1], " ", "", -1)
+		}
+
+	}
+
+}
+
+func initKafkaConfig() {
+	serverid = g_Config["serverId"]
+	s := strings.Split(g_Config["serverList"], ",")
+	for i := 0; i < len(s); i++ {
+		serverMap[i] = s[i]
+	}
+}
+func initMylog() {
+	task_log_file := "./debug.log"
 	tasklogfile, err := os.OpenFile(task_log_file, os.O_RDWR|os.O_CREATE, 0)
 	if err != nil {
 		fmt.Printf("%s\r\n", err.Error())
 		os.Exit(-1)
 	}
-	err_log_file := "./Report.err.log"
+	err_log_file := "./debug.log"
 	errlogfile, err := os.OpenFile(err_log_file, os.O_RDWR|os.O_CREATE, 0)
 	if err != nil {
 		fmt.Printf("%s\r\n", err.Error())
@@ -781,7 +822,9 @@ func main() {
 	initRecoredSet()
 	initTaskCh()
 	if log_resource == "kafka" {
-		parseconf()
+		//parseconf()
+		initConfig()
+		initKafkaConfig()
 		go fillTask_kafka()
 	} else {
 		go fillTask_syslog()

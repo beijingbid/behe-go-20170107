@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"os/signal"
+	//"os/signal"
 	//"math/rand"
 	"runtime"
 	"strconv"
@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	kafka "github.com/Shopify/sarama"
+	//kafka "github.com/Shopify/sarama"
 	"github.com/garyburd/redigo/redis"
 	"github.com/larspensjo/config"
 )
@@ -150,7 +150,7 @@ func initConfig() {
 		if err != nil || io.EOF == err {
 			break
 		}
-		fmt.Println(line)
+		//fmt.Println(line)
 		line = strings.Replace(line, "\r", "", -1)
 		if line == "" {
 			break
@@ -200,6 +200,8 @@ func requestHttp(str_task_key string) bool {
 	str_hv := strconv.Itoa(int(hv))
 	str_b64 := base64.StdEncoding.EncodeToString([]byte(str_task_key))
 	str_url := "http://localhost:8041/set?hv=" + str_hv + "&key=" + str_b64
+	blog(" send http request " + str_url)
+
 	resp, err := conn_http.Get(str_url)
 	if err != nil {
 		//blog(" ERR1:")
@@ -346,7 +348,7 @@ func create_demo() string {
 
 func fillTask_syslog() {
 	//blog(" func fillTask_syslog start")
-	cmd := exec.Command("cat", "monitor_pipe_report")
+	cmd := exec.Command("cat", "/data/monitorlogs/monitor_pipe_report")
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Start()
 	inputReader := bufio.NewReader(stdout)
@@ -375,7 +377,7 @@ func fillTask_syslog() {
 		task_ch[idx] <- inputString
 		//logger_task.Println(" get inputString:")
 
-		//blog(" get inputString " + strings.Replace(inputString, sep_str, ",", -1) + " into task " + strconv.FormatUint(uint64(idx), 10))
+		blog(" get syslog inputString " + strings.Replace(inputString, sep_str, ",", -1) + " into task " + strconv.FormatUint(uint64(idx), 10))
 		//task_ch[getCrc(inputString)%uint32(count)] <- inputString
 
 	}
@@ -384,52 +386,76 @@ func fillTask_syslog() {
 
 // kafka
 func fillTask_kafka() {
-	consumer, err := kafka.NewConsumer([]string{"kafka-0001:9092", "kafka-0002:9092", "kafka-0003:9092", "kafka-0004:9092", "kafka-0005:9092", "kafka-0006:9092", "kafka-0007:9092", "kafka-0008:9092"}, nil)
-	if err != nil {
-		fmt.Println(err)
-		panic(err)
+	scfg1 := strings.Split(g_Config["kafkaServerList"], ",")
+	//scfgkafka := make(map[int]string)
+	scfgk := "asdf"
+	for i := 0; i < len(scfg1); i++ {
+		if i != 0 {
+			scfgk += ","
+		}
+		scfg2 := strings.Split(scfg1[i], "|")
+		if len(scfg2) < 2 {
+			//scfg2port := "9092"
+			scfgk += "\"" + scfg2[0] + ":" + "9092" + "\""
+		} else {
+			//scfg2port := scfg2[1]
+			scfgk += "\"" + scfg2[0] + ":" + scfg2[1] + "\""
+		}
 	}
 
-	defer func() {
-		if err := consumer.Close(); err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	partitionConsumer, err := consumer.ConsumePartition("adrtlog", 0, kafka.OffsetNewest)
-	if err != nil {
-		fmt.Println(err)
-		panic(err)
-	}
-
-	defer func() {
-		if err := partitionConsumer.Close(); err != nil {
-			fmt.Println(err)
-		}
-	}()
-
-	// Trap SIGINT to trigger a shutdown.
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt)
-
-ConsumerLoop:
-	for {
-		select {
-		case msg := <-partitionConsumer.Messages():
-			//fmt.Println("Consumed message offset ", msg.Offset, string(msg.Value))
-			str_log := formatLog(string(msg.Value))
-			// 这里 做cid 哈希的判断
-			var log_arr []string = strings.Split(str_log, sep_str)
-			s_idx := int(getCrc(log_arr[5]) % uint32(len(serverMap)))
-			if serverMap[s_idx] == serverid {
-				idx := getCrc(str_log) % uint32(count)
-				task_ch[idx] <- str_log
+	//scfgk = strings.Replace(scfgk, "\r", "", -1)
+	blog("kafka server conn " + scfgk)
+	blog("kafka server cfg " + g_Config["kafkaServerList"])
+	//consumer, err := kafka.NewConsumer([]string{"kafka-0001:9092", "kafka-0002:9092", "kafka-0003:9092", "kafka-0004:9092", "kafka-0005:9092", "kafka-0006:9092", "kafka-0007:9092", "kafka-0008:9092"}, nil)
+	/*
+			consumer, err := kafka.NewConsumer([]string{scfgk}, nil)
+			if err != nil {
+				fmt.Println(err)
+				panic(err)
 			}
-			//
-		case <-signals:
-			break ConsumerLoop
-		}
-	}
+
+			defer func() {
+				if err := consumer.Close(); err != nil {
+					fmt.Println(err)
+				}
+			}()
+
+			partitionConsumer, err := consumer.ConsumePartition("adrtlog", 0, kafka.OffsetNewest)
+			if err != nil {
+				fmt.Println(err)
+				panic(err)
+			}
+
+			defer func() {
+				if err := partitionConsumer.Close(); err != nil {
+					fmt.Println(err)
+				}
+			}()
+
+			// Trap SIGINT to trigger a shutdown.
+			signals := make(chan os.Signal, 1)
+			signal.Notify(signals, os.Interrupt)
+
+		ConsumerLoop:
+			for {
+				select {
+				case msg := <-partitionConsumer.Messages():
+					blog(" get kafka inputString " + string(msg.Value))
+
+					//fmt.Println("Consumed message offset ", msg.Offset, string(msg.Value))
+					str_log := formatLog(string(msg.Value))
+					// 这里 做cid 哈希的判断
+					var log_arr []string = strings.Split(str_log, sep_str)
+					s_idx := int(getCrc(log_arr[5]) % uint32(len(serverMap)))
+					if serverMap[s_idx] == serverid {
+						idx := getCrc(str_log) % uint32(count)
+						task_ch[idx] <- str_log
+					}
+					//
+				case <-signals:
+					break ConsumerLoop
+				}
+			}*/
 }
 
 func processTask(idx int) {
@@ -451,7 +477,8 @@ func formatLog(str string) string {
 	if strings.Index(str, "[INFO]") > 0 {
 		return Substr(str, strings.Index(str, "[INFO]")+7, strings.Count(str, ""))
 	} else {
-		return str
+		return Substr(str, 28, strings.Count(str, ""))
+		//return str
 	}
 
 }
@@ -485,6 +512,7 @@ func Substr(str string, start, length int) string {
 	return string(rs[start:end])
 }
 func Excute(str_log string, idx int) {
+	blog(" Excute log " + str_log)
 	str_log = strings.Replace(str_log, "\n", "", 1)
 	str_log = strings.Replace(str_log, "\r", "", 1)
 	str_log = strings.Replace(str_log, "\t", "", 1)
@@ -495,19 +523,19 @@ func Excute(str_log string, idx int) {
 	if len(log_arr) > 2 {
 		if (log_arr[0] == "4") && (len(log_arr) >= 15) {
 			click_process(&log_arr)
-			//blog(" call func click_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
+			blog(" call func click_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 		} else if (log_arr[0] == "3") && (len(log_arr) >= 15) {
 			view_process(&log_arr)
-			//blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
+			blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 
 		} else if (log_arr[0] == "5") && (len(log_arr) >= 15) {
 			view_process(&log_arr)
-			//blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
+			blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 
 		} else {
-			//blog(" call execute none ("+log_arr[0]+") len = ("+strconv.Itoa(len(log_arr))+") [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
+			blog(" call execute none (" + log_arr[0] + ") len = (" + strconv.Itoa(len(log_arr)) + ") [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 		}
-		////blog(" func Excute " + log_arr[1])
+		blog(" func Excute " + log_arr[0])
 	}
 }
 
@@ -560,7 +588,7 @@ func view_process(strarr *[]string) {
 		//基础报表-------------------
 		tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
 		viewSetRecord(tb_base_key, did, bid, pid, cid)
-		//blog(" BASE view str_today " + str_today + " did " + did + " bid " + bid + " pid " + pid + " cid " + cid)
+		blog(" BASE view str_today " + str_today + " did " + did + " bid " + bid + " pid " + pid + " cid " + cid)
 
 		//---------------------------------
 		shift_g_recored_lock.RUnlock()
@@ -645,6 +673,7 @@ func click_process(strarr *[]string) {
 		shift_g_recored_lock.RLock()
 		tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
 		clickSetRecord(tb_base_key, did, bid, pid, cid)
+		blog(" click process " + tb_base_key)
 		shift_g_recored_lock.RUnlock()
 	}
 }
@@ -704,7 +733,7 @@ func updateRecord() {
 }
 
 func updateMap2Redis(idx int, rec_time int64) {
-	//blog(" func updateMap2Redis start")
+	blog(" func updateMap2Redis start")
 	redis_conn := pools_redis[idx].Get()
 	defer redis_conn.Close()
 	//now_timestamp := time.Now().Unix()
@@ -730,20 +759,20 @@ func updateMap2Redis(idx int, rec_time int64) {
 		var tmp_num int64
 		tmp_num = 0
 		if rpinfo.view_num > 0 {
-			//blog(" debug view_num = " + strconv.FormatInt(rpinfo.view_num, 10))
+			blog(" debug view_num = " + strconv.FormatInt(rpinfo.view_num, 10))
 			tmp_num, err = redis.Int64(redis_conn.Do("HINCRBY", redis_key, "view", rpinfo.view_num))
 			if err != nil {
 				fmt.Println("ErrInc:", tmp_num, err, "HINCRBY", redis_key, "view", rpinfo.view_num)
 			}
 		}
 		if rpinfo.click_num > 0 {
-			//blog(" debug click_num = " + strconv.FormatInt(rpinfo.click_num, 10))
+			blog(" debug click_num = " + strconv.FormatInt(rpinfo.click_num, 10))
 			tmp_num, err = redis.Int64(redis_conn.Do("HINCRBY", redis_key, "click", rpinfo.click_num))
 			if err != nil {
 				fmt.Println("ErrInc:", tmp_num, err, "HINCRBY", redis_key, "click", rpinfo.click_num)
 			}
 		} else {
-			//blog(" debug click_num = 0")
+			blog(" debug click_num = 0")
 		}
 		// 发起一个http的请求
 		requestHttp(redis_key)
@@ -813,7 +842,7 @@ func main() {
 	go loadsavetask()
 	flag.Parse()
 
-	log_resource := flag.Arg(1)
+	//log_resource := flag.Arg(1)
 	pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 	pools_redis_click = append(pools_redis_click, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 
@@ -821,14 +850,14 @@ func main() {
 	var quit chan int
 	initRecoredSet()
 	initTaskCh()
-	if log_resource == "kafka" {
-		//parseconf()
-		initConfig()
-		initKafkaConfig()
-		go fillTask_kafka()
-	} else {
-		go fillTask_syslog()
-	}
+	//if log_resource == "kafka" {
+	//parseconf()
+	initConfig()
+	initKafkaConfig()
+	go fillTask_kafka()
+	//} else {
+	go fillTask_syslog()
+	//}
 	for i := 0; i < count; i++ {
 		go processTask(i)
 	}

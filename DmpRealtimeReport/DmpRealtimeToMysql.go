@@ -89,8 +89,9 @@ func initMysql() {
 	scfg := g_Config["dbuser"] + ":" + g_Config["dbpassword"] + "@(" + g_Config["dbhost"] + ":" + g_Config["dbport"] + ")/" + g_Config["dbname"] + "?charset=" + g_Config["dbcharset"]
 	scfg = strings.Replace(scfg, "\n", "", -1)
 	scfg = strings.Replace(scfg, "\r", "", -1)
-
-	db, err := sql.Open("mysql", scfg)
+	blog(scfg)
+	var err error
+	db, err = sql.Open("mysql", scfg)
 	//db, err = sql.Open("mysql", "dmpUser:5a0def138139a60f7a6d868e@(10.100.18.83:3306)/behe_yili_dmp_report_advert?charset=utf8")
 	if err != nil {
 		blog("Connect Mysql err:", " err")
@@ -101,6 +102,8 @@ func initMysql() {
 	db.SetMaxOpenConns(32)
 	db.SetMaxIdleConns(16)
 	db.Ping()
+	blog("db ping ok")
+	fmt.Println(db)
 }
 func initRedis() {
 	//blog("initRedis start")
@@ -227,6 +230,7 @@ func processTask(idx int) {
 }*/
 
 func genSQL(str_task_key string) (string, string, bool) {
+	blog(" call func genSql ")
 	var strarr []string = strings.Split(str_task_key, "^")
 	if strarr[0] != "BASE" {
 		return "", "", false
@@ -266,7 +270,7 @@ func genSQL(str_task_key string) (string, string, bool) {
 	}
 
 	del_sql := "delete from campaign_realtime WHERE 1 and reportDate = '" + str_today + "' and departmentId = '" + strarr[2] + "' and brandId = '" + strarr[3] + "' and productId = '" + strarr[4] + "' and campaignId = '" + strarr[5] + "';"
-	insert_sql := "insert into campaign_realtime (`id`, `departmentId`, `brandId`, `productId`, `campaignId`, `reportDate`, `pv`, `click`) values(NULL,'" + strarr[3] + "','" + strarr[3] + "','" + strarr[4] + "','" + strarr[5] + "','" + str_today + "','" + view + "','" + click + "')"
+	insert_sql := "insert into campaign_realtime (`id`, `departmentId`, `brandId`, `productId`, `campaignId`, `reportDate`, `pv`, `click`) values(NULL,'" + strarr[3] + "','" + strarr[3] + "','" + strarr[4] + "','" + strarr[5] + "','" + str_today + "','" + view + "','" + click + "');"
 
 	return del_sql, insert_sql, true
 
@@ -274,40 +278,43 @@ func genSQL(str_task_key string) (string, string, bool) {
 }
 
 func excuteSql(str_sql string, idx int, str_task_key string) {
+	blog(" sql=" + str_sql)
 	if len(str_sql) <= 0 {
-		//blog("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Err: sql size < 0")
-		//blog("Thread id:)
+		fmt.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Err: sql size < 0")
+
 		return
 	}
-	stmt, err := db.Prepare(str_sql)
+	fmt.Println(" print db in excuteSql ")
+	fmt.Println(db)
+	blog("0  ")
+	err := db.Ping()
 	if err != nil {
-		//blog("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Err:", err)
-		//blog("Sql:"+ str_sql)
-		return
+		blog("0 db ping error ")
 	}
-	defer stmt.Close()
-	_, err_r := stmt.Exec()
-	if err_r != nil {
-		//blog("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Exec.Err:", err_r)
-		return
+	blog("1")
+	stmt, err := db.Prepare(str_sql)
+	fmt.Println(stmt)
+	fmt.Println(err)
+	//defer stmt.Close()
+	if stmt != nil {
+		stmt.Exec()
 	}
-	//logger_task.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Res:", res)
 	return
 }
 
 func Excute(str_task_key string, idx int) {
-	//blog(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
+	blog(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
 	str_sql_del, str_sql_insert, isok := genSQL(str_task_key)
 	//blog(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
 
 	if isok == false {
-		//blog("genSQL err ! ", str_task_key, str_sql_del, str_sql_insert, isok)
+		blog("genSQL err ! ", str_task_key, str_sql_del, str_sql_insert)
 		return
 	}
 
-	//blog("Thread id:",idx,",Task:",str_task_key,",SqlDel:",str_sql_del)
-	//blog("Thread id:",idx,",Task:",str_task_key,",SqlIns:",str_sql_insert)
+	blog("Thread id:", ",Task:", str_task_key, ",SqlDel:", str_sql_del)
 	excuteSql(str_sql_del, idx, str_task_key)
+	blog("Thread id:", ",Task:", str_task_key, ",SqlIns:", str_sql_insert)
 	excuteSql(str_sql_insert, idx, str_task_key)
 	return
 }
@@ -352,7 +359,7 @@ func main() {
 
 	err := http.ListenAndServe(":8041", nil)
 	if err != nil {
-		blog("Err")
+		blog("Err for http handle")
 	}
 	blog(" progream end ")
 }

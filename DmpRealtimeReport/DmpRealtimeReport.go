@@ -28,7 +28,7 @@ import (
 
 	//kafka "github.com/Shopify/sarama"
 	"github.com/garyburd/redigo/redis"
-	"github.com/larspensjo/config"
+	//"github.com/larspensjo/config"
 )
 
 //topic list
@@ -73,7 +73,6 @@ var task_ch []chan string
 var count int
 
 var pools_redis []*redis.Pool
-var pools_redis_click []*redis.Pool
 
 var conn_http *http.Client = &http.Client{
 
@@ -94,51 +93,7 @@ var conn_http *http.Client = &http.Client{
 	},
 }
 
-func parseconf() {
-	//set config file std
-	cfg, err := config.ReadDefault(*configFile)
-	if err != nil {
-		log.Fatalf("Fail to find", *configFile, err)
-	}
-	//set config file std End
-
-	//Initialized topic from the configuration
-	if cfg.HasSection("server") {
-		section, err := cfg.SectionOptions("server")
-		if err == nil {
-			i := 0
-			//fmt.Println("section ", section)
-			for _, v := range section {
-				options, err := cfg.String("server", v)
-				//fmt.Println("serverMap key=[", i, "] and options=", options)
-				if err == nil {
-					serverMap[i] = options
-				}
-				i++
-			}
-		}
-	}
-
-	if cfg.HasSection("id") {
-		section, err := cfg.SectionOptions("id")
-		if err == nil {
-			for _, v := range section {
-				options, err := cfg.String("id", v)
-				if err == nil {
-					serverid = options
-				}
-			}
-		}
-	}
-	//Initialized topic from the configuration END
-
-	//fmt.Println("serverMap = ", serverMap)
-	//fmt.Println("serverid = ", serverid)
-
-}
-
 func initConfig() {
-	//g_Config := make(map[string]string)
 	f, err := os.Open("db.conf")
 	if err != nil {
 		panic(err)
@@ -150,7 +105,6 @@ func initConfig() {
 		if err != nil || io.EOF == err {
 			break
 		}
-		//fmt.Println(line)
 		line = strings.Replace(line, "\r", "", -1)
 		if line == "" {
 			break
@@ -175,22 +129,20 @@ func initKafkaConfig() {
 		serverMap[i] = s[i]
 	}
 }
-func initMylog() {
-	task_log_file := "./debug.log"
-	tasklogfile, err := os.OpenFile(task_log_file, os.O_RDWR|os.O_CREATE, 0)
-	if err != nil {
-		fmt.Printf("%s\r\n", err.Error())
-		os.Exit(-1)
-	}
-	err_log_file := "./debug.log"
-	errlogfile, err := os.OpenFile(err_log_file, os.O_RDWR|os.O_CREATE, 0)
-	if err != nil {
-		fmt.Printf("%s\r\n", err.Error())
-		os.Exit(-1)
-	}
-	logger_task = log.New(tasklogfile, "", 0)
-	logger_err = log.New(errlogfile, "", 0)
 
+func initRedis() {
+
+	s := strings.Split(g_Config["redisServerList"], ",")
+	for i := 0; i < len(s); i++ {
+		sl := strings.Split(s[i], "|")
+		if sl[1] == "" {
+			sl[1] = "6379"
+		}
+		rcfg := sl[0] + ":" + sl[1]
+		rcfg = strings.Replace(rcfg, "\n", "", -1)
+		rcfg = strings.Replace(rcfg, "\r", "", -1)
+		pools_redis = append(pools_redis, newPool(rcfg))
+	}
 }
 
 // 发请求的方法，可以留用
@@ -200,11 +152,8 @@ func requestHttp(str_task_key string) bool {
 	str_hv := strconv.Itoa(int(hv))
 	str_b64 := base64.StdEncoding.EncodeToString([]byte(str_task_key))
 	str_url := "http://localhost:8041/set?hv=" + str_hv + "&key=" + str_b64
-	blog(" send http request " + str_url)
-
 	resp, err := conn_http.Get(str_url)
 	if err != nil {
-		//blog(" ERR1:")
 		fmt.Println("Err1:", err)
 		return false
 	}
@@ -212,7 +161,6 @@ func requestHttp(str_task_key string) bool {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		//blog("Err2:")
 		fmt.Println("Err2:", err, "body:", body)
 		return false
 	}
@@ -262,7 +210,6 @@ func getMd5(key string) string {
 }
 
 func initRecoredSet() {
-	//blog(" func initRecoredSet start")
 	var v RecoredSet
 	var v1 RecoredSet
 	v.m_record = make(map[string]*reportInfo)
@@ -271,7 +218,6 @@ func initRecoredSet() {
 	g_recored = append(g_recored, v1)
 	rec_idx = 0
 	recordset_size = 2
-	//blog(" func initRecoredSet end")
 }
 
 func getCrc(key string) uint32 {
@@ -296,13 +242,10 @@ func getCrcn(key string, n int) int {
 
 // 管道数量
 func initTaskCh() {
-	//blog(" func initTaskCh start")
 	count = 32
 	for i := 0; i < count; i++ {
 		task_ch = append(task_ch, make(chan string, 300000))
-		//blog(" run task_ch " + strconv.Itoa(i))
 	}
-	//blog(" func initTaskCh end")
 }
 func create_demo() string {
 
@@ -342,12 +285,11 @@ func create_demo() string {
 	demo_log += sep_str + " "
 	demo_log += sep_str + " "
 	demo_log += sep_str + " "
-	////blog(" demo_log " + demo_log)
+	//blog(" demo_log " + demo_log)
 	return demo_log
 }
 
 func fillTask_syslog() {
-	//blog(" func fillTask_syslog start")
 	cmd := exec.Command("cat", "/data/monitorlogs/monitor_pipe_report")
 	stdout, _ := cmd.StdoutPipe()
 	cmd.Start()
@@ -365,30 +307,18 @@ func fillTask_syslog() {
 			cmd.Start()
 			inputReader = bufio.NewReader(stdout)
 			continue
-			//time.Sleep(1 * time.Second)
-			//inputString = create_demo()
-			//blog(" call func create_demo and result = " + inputString)
 		}
 		inputString = formatLog(inputString)
 		idx := getCrcn(inputString, count)
-		if idx < 0 {
-			//      idx = -1 * idx
-		}
+
 		task_ch[idx] <- inputString
-		//logger_task.Println(" get inputString:")
-
-		blog(" get syslog inputString " + strings.Replace(inputString, sep_str, ",", -1) + " into task " + strconv.FormatUint(uint64(idx), 10))
-		//task_ch[getCrc(inputString)%uint32(count)] <- inputString
-
 	}
-	//blog(" func fillTask_syslog end")
 }
 
 // kafka
 func fillTask_kafka() {
 	scfg1 := strings.Split(g_Config["kafkaServerList"], ",")
-	//scfgkafka := make(map[int]string)
-	scfgk := "asdf"
+	scfgk := ""
 	for i := 0; i < len(scfg1); i++ {
 		if i != 0 {
 			scfgk += ","
@@ -459,15 +389,12 @@ func fillTask_kafka() {
 }
 
 func processTask(idx int) {
-	//blog(" func processTask start")
 	for {
 		str_log, ok := <-task_ch[idx]
 		if ok == false {
-			//blog("task queue empty![" + strconv.Itoa(idx) + "]")
-			//fmt.Println("task queue empty!")
+			fmt.Println("task queue empty!")
 		} else {
 			Excute(str_log, idx)
-			//blog(" call func Excute [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 		}
 	}
 }
@@ -512,30 +439,20 @@ func Substr(str string, start, length int) string {
 	return string(rs[start:end])
 }
 func Excute(str_log string, idx int) {
-	blog(" Excute log " + str_log)
 	str_log = strings.Replace(str_log, "\n", "", 1)
 	str_log = strings.Replace(str_log, "\r", "", 1)
 	str_log = strings.Replace(str_log, "\t", "", 1)
 
-	//str_log = formatLog(str_log)
-	////blog(" Excute log " + str_log)
 	var log_arr []string = strings.Split(str_log, sep_str)
 	if len(log_arr) > 2 {
 		if (log_arr[0] == "4") && (len(log_arr) >= 15) {
 			click_process(&log_arr)
-			blog(" call func click_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 		} else if (log_arr[0] == "3") && (len(log_arr) >= 15) {
 			view_process(&log_arr)
-			blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 
 		} else if (log_arr[0] == "5") && (len(log_arr) >= 15) {
 			view_process(&log_arr)
-			blog(" call func view_process [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
-
-		} else {
-			blog(" call execute none (" + log_arr[0] + ") len = (" + strconv.Itoa(len(log_arr)) + ") [" + strings.Replace(str_log, sep_str, ",", -1) + "],[" + strconv.Itoa(idx) + "]")
 		}
-		blog(" func Excute " + log_arr[0])
 	}
 }
 
@@ -575,13 +492,7 @@ func view_process(strarr *[]string) {
 	pid := (*strarr)[4]
 	cid := (*strarr)[5]
 	str_today := (*strarr)[1]
-	//timestamp, _ := strconv.Atoi((*strarr)[1])
-	//str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02 15:04:05")
-	//str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
-	//str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
-	//blog(" debug from view_process  did =" + did + " bid =" + bid + " pid =" + pid + " cid =" + cid)
 	if str_today == "1970-01-01" {
-		//blog(" str_today err")
 	} else {
 		shift_g_recored_lock.RLock()
 
@@ -596,40 +507,12 @@ func view_process(strarr *[]string) {
 
 }
 
-/*
-func record_Click(did , bid , pid ,cid string) int {
-
-	redis_conn_click := pools_redis_click[0].Get()
-	defer redis_conn_click.Close()
-	res, err := redis.Int(redis_conn_click.Do("HSETNX", bhuid, order_id, clickinfo))
-	if err != nil {
-		fmt.Println("ErrHs:", res, "HSETNX", bhuid, order_id, clickinfo)
-	}
-	//fmt.Println("HSET",bhuid,order_id,clickinfo)
-	if res == 0 {
-		res_n, err_n := redis.Int(redis_conn_click.Do("HSET", bhuid, order_id, (clickinfo + "|1")))
-		if err_n != nil {
-			fmt.Println("ErrHs:", res_n, "HSET", bhuid, order_id, clickinfo)
-		}
-	}
-	now_time := time.Now().Unix()
-	today := (now_time+28800)/86400*86400 - 28800
-	res_exp, err := redis_conn_click.Do("EXPIREAT", bhuid, today+86399)
-	if err != nil {
-		fmt.Println("ErrHs:", res_exp, "EXPIREAT", bhuid, today+86399)
-	}
-	return res
-}
-
-*/
 func clickSetRecord(strkey string, did string, pid string, bid string, cid string) {
-	//blog(" debug func clickSetRecord ")
 	var tmprec *reportInfo
 	g_recored[rec_idx].m_record_lock.RLock()
 	tmprec = g_recored[rec_idx].m_record[strkey]
 	g_recored[rec_idx].m_record_lock.RUnlock()
 	if tmprec == nil {
-		//blog(" debug func clickSetRecord step 1")
 		var x reportInfo
 		g_recored[rec_idx].m_record_lock.Lock()
 		tmprec = g_recored[rec_idx].m_record[strkey]
@@ -639,12 +522,10 @@ func clickSetRecord(strkey string, did string, pid string, bid string, cid strin
 		}
 		g_recored[rec_idx].m_record_lock.Unlock()
 	} else {
-		//blog(" debug func clickSetRecord step 2")
 		g_recored[rec_idx].m_record_lock.RLock()
 		tmprec = g_recored[rec_idx].m_record[strkey]
 		g_recored[rec_idx].m_record_lock.RUnlock()
 	}
-	//blog(" debug func clickSetRecord step 3")
 	tmprec.m_lock.Lock()
 	tmprec.did = did
 	tmprec.bid = bid
@@ -652,9 +533,6 @@ func clickSetRecord(strkey string, did string, pid string, bid string, cid strin
 	tmprec.cid = cid
 	tmprec.click_num++
 	tmprec.m_lock.Unlock()
-	//blog(" debug func clickSetRecord step 4")
-	//blog(" click did " + did + " bid " + bid + " pid " + pid + " cid " + cid + " view " + strconv.FormatInt(tmprec.click_num, 10))
-
 }
 
 func click_process(strarr *[]string) {
@@ -663,55 +541,19 @@ func click_process(strarr *[]string) {
 	pid := (*strarr)[4]
 	cid := (*strarr)[5]
 	str_today := (*strarr)[1]
-	//timestamp, _ := strconv.Atoi((*strarr)[1])
-	//str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02 15:04:05")
-	//str_hour := strconv.Itoa(time.Unix(int64(timestamp), 0).Hour())
-	//str_minute := strconv.Itoa(time.Unix(int64(timestamp), 0).Minute())
 	if str_today == "1970-01-01" {
 
 	} else {
 		shift_g_recored_lock.RLock()
 		tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
 		clickSetRecord(tb_base_key, did, bid, pid, cid)
-		blog(" click process " + tb_base_key)
 		shift_g_recored_lock.RUnlock()
 	}
 }
 
-/*
-func raSetRecord(strkey , did,bid,pid,cid string) {
-	var tmprec *reportInfo
-	g_recored[rec_idx].m_record_lock.RLock()
-	tmprec = g_recored[rec_idx].m_record[strkey]
-	g_recored[rec_idx].m_record_lock.RUnlock()
-	if tmprec == nil {
-		var x reportInfo
-		g_recored[rec_idx].m_record_lock.Lock()
-		tmprec = g_recored[rec_idx].m_record[strkey]
-		if tmprec == nil {
-			x.action_map = make(map[string]int64)
-			x.user_action_map = make(map[string]int64)
-			g_recored[rec_idx].m_record[strkey] = &x
-			tmprec = &x
-		}
-		g_recored[rec_idx].m_record_lock.Unlock()
-	} else {
-		g_recored[rec_idx].m_record_lock.RLock()
-		tmprec = g_recored[rec_idx].m_record[strkey]
-		g_recored[rec_idx].m_record_lock.RUnlock()
-	}
-	tmprec.m_lock.Lock()
-	tmprec.did = did
-	tmprec.bid = bid
-	tmprec.pid = pid
-	tmprec.cid = cid
-	tmprec.m_lock.Unlock()
-}
-*/
 // 执行一次写入redis
 func updateRecord() {
 
-	//blog(" func updateRecord start")
 	record_timestamp := time.Now().Unix()
 	for {
 		// 30秒刷新数据
@@ -729,57 +571,38 @@ func updateRecord() {
 		updateMap2Redis(old_rec_idx, time_sep)
 
 	}
-	//blog(" func updateRecord end")
 }
 
 func updateMap2Redis(idx int, rec_time int64) {
-	blog(" func updateMap2Redis start")
 	redis_conn := pools_redis[idx].Get()
 	defer redis_conn.Close()
-	//now_timestamp := time.Now().Unix()
 	for redis_key, rpinfo := range g_recored[idx].m_record {
-		//var strarr []string = strings.Split(redis_key, "^")
-		/*res, err := redis_conn.Do("HMSET", redis_key, "view_num")
-		if err != nil {
-			//blog("ErrHs:")
-			fmt.Println("ErrHs:", res, "HMSET", redis_key, "view_num")
-		}
-		res, err = redis_conn.Do("HMSET", redis_key, "click_num")
-		//res, err := redis_conn.Do("HMSET", redis_key, "did", rpinfo.did, "bid", rpinfo.bid, "pid", rpinfo.pid, "cid", rpinfo.cid)
-		if err != nil {
-			//blog("ErrHs:")
-			fmt.Println("ErrHs:", res, "HMSET", redis_key, "click_num")
-		}*/
+
 		res, err := redis_conn.Do("EXPIRE", redis_key, 172800)
 		if err != nil {
-			//blog("ErrHs:")
 			fmt.Println("ErrHs: ", res, "EXPIRE", redis_key, 172800)
 		}
 
 		var tmp_num int64
 		tmp_num = 0
 		if rpinfo.view_num > 0 {
-			blog(" debug view_num = " + strconv.FormatInt(rpinfo.view_num, 10))
 			tmp_num, err = redis.Int64(redis_conn.Do("HINCRBY", redis_key, "view", rpinfo.view_num))
 			if err != nil {
 				fmt.Println("ErrInc:", tmp_num, err, "HINCRBY", redis_key, "view", rpinfo.view_num)
 			}
 		}
 		if rpinfo.click_num > 0 {
-			blog(" debug click_num = " + strconv.FormatInt(rpinfo.click_num, 10))
 			tmp_num, err = redis.Int64(redis_conn.Do("HINCRBY", redis_key, "click", rpinfo.click_num))
 			if err != nil {
 				fmt.Println("ErrInc:", tmp_num, err, "HINCRBY", redis_key, "click", rpinfo.click_num)
 			}
 		} else {
-			blog(" debug click_num = 0")
 		}
 		// 发起一个http的请求
 		requestHttp(redis_key)
 
 	}
 	g_recored[idx].m_record = make(map[string]*reportInfo)
-	//blog(" func updateMap2Redis end")
 }
 
 func isSameDay(timestamp1 int, timestamp2 int) bool {
@@ -814,11 +637,6 @@ func loadsavetask() {
 
 //发送保存数据的任务
 func loadfile() {
-	//blog(" func loadfile")
-	/*
-		blacklistip_map_lock.Lock()
-		blacklistip_map = make(map[string]int)
-		blacklistip_map_lock.Unlock()*/
 }
 
 func blog(str string) {
@@ -838,13 +656,9 @@ func blog(str string) {
 
 // 传入参数 第一个为日志收集类型 (syslog/kafka)
 func main() {
-	blog(" func main start")
+	fmt.Println(" start")
 	go loadsavetask()
 	flag.Parse()
-
-	//log_resource := flag.Arg(1)
-	pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
-	pools_redis_click = append(pools_redis_click, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	var quit chan int
@@ -853,6 +667,7 @@ func main() {
 	//if log_resource == "kafka" {
 	//parseconf()
 	initConfig()
+	initRedis()
 	initKafkaConfig()
 	go fillTask_kafka()
 	//} else {
@@ -863,6 +678,5 @@ func main() {
 	}
 	go updateRecord()
 
-	blog(" func main end")
 	<-quit
 }

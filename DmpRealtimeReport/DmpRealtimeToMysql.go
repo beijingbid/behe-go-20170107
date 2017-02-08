@@ -35,8 +35,7 @@ func newPool(server string) *redis.Pool {
 		Dial: func() (redis.Conn, error) {
 			c, err := redis.Dial("tcp", server)
 			if err != nil {
-				//panic(err.Error())
-				//blog(err.Error())
+				panic(err.Error())
 			}
 			return c, err
 		},
@@ -48,8 +47,6 @@ func initMylog() {
 }
 
 func initConfig() {
-	//blog("initConfig start")
-	//g_Config := make(map[string]string)
 	f, err := os.Open("db.conf")
 	if err != nil {
 		panic(err)
@@ -61,7 +58,6 @@ func initConfig() {
 		if err != nil || io.EOF == err {
 			break
 		}
-		//blog(line)
 		line = strings.Replace(line, "\r", "", -1)
 		if line == "" {
 			break
@@ -83,8 +79,6 @@ func initConfig() {
 
 func initMysql() {
 
-	//blog("initMysql start")
-	//blog(g_Config)
 	//"dmpUser:5a0def138139a60f7a6d868e@(10.100.18.83:3306)/behe_yili_dmp_report_advert?charset=utf8"
 	scfg := g_Config["dbuser"] + ":" + g_Config["dbpassword"] + "@(" + g_Config["dbhost"] + ":" + g_Config["dbport"] + ")/" + g_Config["dbname"] + "?charset=" + g_Config["dbcharset"]
 	scfg = strings.Replace(scfg, "\n", "", -1)
@@ -102,15 +96,10 @@ func initMysql() {
 	db.SetMaxOpenConns(32)
 	db.SetMaxIdleConns(16)
 	db.Ping()
-	blog("db ping ok")
-	fmt.Println(db)
 }
 func initRedis() {
-	//blog("initRedis start")
 
-	//blog(" debug redis conf " + g_Config["redisServerList"])
 	s := strings.Split(g_Config["redisServerList"], ",")
-	//s := "localhost|6379"
 	for i := 0; i < len(s); i++ {
 		sl := strings.Split(s[i], "|")
 		if sl[1] == "" {
@@ -120,9 +109,7 @@ func initRedis() {
 		rcfg = strings.Replace(rcfg, "\n", "", -1)
 		rcfg = strings.Replace(rcfg, "\r", "", -1)
 		pools_redis = append(pools_redis, newPool(rcfg))
-		//blog(" debug redis conn "+ rcfg)
 	}
-	//pools_redis = append(pools_redis, newPool("127.0.0.1:6379"), newPool("127.0.0.1:6379"))
 
 }
 
@@ -150,17 +137,13 @@ func paraURI(str_uri string, para_map *map[string]string) {
 }
 
 func addTask(writer http.ResponseWriter, req *http.Request) {
-	//start_time := time.Now().UnixNano()
-
 	prara_map := make(map[string]string)
 	paraURI(req.URL.String(), &prara_map)
-	//str_redis_key := prara_map["key"]
 	//只有符合格式规则，才加入task
 
 	str_key_list_all := prara_map["key"]
 	var strarr []string = strings.Split(str_key_list_all, ",")
 	var strarr_sub []string
-	//var hash_value int
 	n := len(strarr)
 	for i := 0; i < n; i++ {
 		task_key, _ := base64.StdEncoding.DecodeString(strarr[i])
@@ -172,15 +155,10 @@ func addTask(writer http.ResponseWriter, req *http.Request) {
 		pid, _ := strconv.Atoi(strarr_sub[4])
 		cid, _ := strconv.Atoi(strarr_sub[5])
 		if strarr_sub[0] == "BASE" && len(strarr_sub) == 6 && did > 0 && bid > 0 && pid > 0 && cid > 0 {
-			//idx := int(getCrc(str_task_key) % unit(count))
-			//idx := int(getCrc(str_task_key) % 32)
 			idx := getCrcn(str_task_key, count)
-			//blog(" debug task in ", str_task_key, " idx = ", strconv.Itoa(idx))
 			task_ch[idx] <- str_task_key
 		}
 	}
-	//end_time := time.Now().UnixNano()
-	//blog(writer, "ok use time:", (end_time-start_time)/1000000, "ms")
 	return
 }
 
@@ -204,33 +182,18 @@ func getCrcn(key string, n int) int {
 	}
 	return crcvsi % n
 }
+
 func processTask(idx int) {
-	//blog(" debug call Excute idx=", idx)
 	for {
 		str_task_key, ok := <-task_ch[idx]
 		if ok == false {
 			blog("task queue empty!")
 		}
-		//blog(" debug task out ", str_task_key, " idx = ", strconv.Itoa(idx))
-
 		Excute(str_task_key, idx)
-
 	}
 }
 
-/*func getTaskInfo(str_task_key string) (map[string]string),bool {
-	redis_conn := pools_redis[0].Get()
-	defer redis_conn.Close()
-	task_rec,err:=redis.StringMap(redis_conn.Do("HGETALL",str_task_key))
-	if err!=nil {
-		blog("getTaskInfo Err:",click_rec,"HGETALL",str_task_key)
-		return task_rec, false
-	}
-	return task_rec, true
-}*/
-
 func genSQL(str_task_key string) (string, string, bool) {
-	blog(" call func genSql ")
 	var strarr []string = strings.Split(str_task_key, "^")
 	if strarr[0] != "BASE" {
 		return "", "", false
@@ -246,15 +209,11 @@ func genSQL(str_task_key string) (string, string, bool) {
 	}
 	timestamp, _ := strconv.Atoi(strarr[1])
 	str_today := time.Unix(int64(timestamp), 0).Format("2006-01-02 15:04:05")
-	/*task_rec,isok:=getTaskInfo(str_task_key)
-	if isok ==false{
-		return "","",false
-	}*/
+
 	redis_conn := pools_redis[0].Get()
 	defer redis_conn.Close()
 	task_rec, err := redis.StringMap(redis_conn.Do("HGETALL", str_task_key))
 	if err != nil {
-		//blog("getTaskInfo Err:", err, "HGETALL", str_task_key)
 		blog("getTaskInfo Err:")
 		return "", "", false
 	}
@@ -278,43 +237,32 @@ func genSQL(str_task_key string) (string, string, bool) {
 }
 
 func excuteSql(str_sql string, idx int, str_task_key string) {
-	blog(" sql=" + str_sql)
 	if len(str_sql) <= 0 {
 		fmt.Println("Thread id:", idx, ",Task:", str_task_key, ",Sql:", str_sql, ",Err: sql size < 0")
-
 		return
 	}
-	fmt.Println(" print db in excuteSql ")
-	fmt.Println(db)
-	blog("0  ")
-	err := db.Ping()
-	if err != nil {
-		blog("0 db ping error ")
-	}
-	blog("1")
 	stmt, err := db.Prepare(str_sql)
-	fmt.Println(stmt)
-	fmt.Println(err)
-	//defer stmt.Close()
-	if stmt != nil {
+
+	defer stmt.Close()
+	if stmt != nil || err != nil {
 		stmt.Exec()
+	} else {
+		fmt.Println(" Err stmt:", stmt)
+		fmt.Println(" Err err:", err)
 	}
+
 	return
 }
 
 func Excute(str_task_key string, idx int) {
-	blog(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
 	str_sql_del, str_sql_insert, isok := genSQL(str_task_key)
-	//blog(" debug Excute key=[" + str_task_key + "] & idx=[" + strconv.Itoa(idx) + "]")
 
 	if isok == false {
 		blog("genSQL err ! ", str_task_key, str_sql_del, str_sql_insert)
 		return
 	}
 
-	blog("Thread id:", ",Task:", str_task_key, ",SqlDel:", str_sql_del)
 	excuteSql(str_sql_del, idx, str_task_key)
-	blog("Thread id:", ",Task:", str_task_key, ",SqlIns:", str_sql_insert)
 	excuteSql(str_sql_insert, idx, str_task_key)
 	return
 }
@@ -340,6 +288,7 @@ func blog(str ...string) {
 }
 
 func main() {
+	fmt.Println(" start")
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	//initMylog()
 	initConfig()

@@ -18,7 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	//"os/signal"
+	"os/signal"
 	//"math/rand"
 	"runtime"
 	"strconv"
@@ -26,9 +26,8 @@ import (
 	"sync"
 	"time"
 
-	//kafka "github.com/Shopify/sarama"
+	kafka "github.com/Shopify/sarama"
 	"github.com/garyburd/redigo/redis"
-	//"github.com/larspensjo/config"
 )
 
 //topic list
@@ -317,75 +316,27 @@ func fillTask_syslog() {
 
 // kafka
 func fillTask_kafka() {
-	scfg1 := strings.Split(g_Config["kafkaServerList"], ",")
-	scfgk := ""
-	for i := 0; i < len(scfg1); i++ {
-		if i != 0 {
-			scfgk += ","
-		}
-		scfg2 := strings.Split(scfg1[i], "|")
-		if len(scfg2) < 2 {
-			//scfg2port := "9092"
-			scfgk += "\"" + scfg2[0] + ":" + "9092" + "\""
-		} else {
-			//scfg2port := scfg2[1]
-			scfgk += "\"" + scfg2[0] + ":" + scfg2[1] + "\""
+
+ConsumerLoop:
+	for {
+		select {
+		case msg := <-partitionConsumer.Messages():
+			blog(" get kafka inputString " + string(msg.Value))
+
+			//fmt.Println("Consumed message offset ", msg.Offset, string(msg.Value))
+			str_log := formatLog(string(msg.Value))
+			// 这里 做cid 哈希的判断
+			var log_arr []string = strings.Split(str_log, sep_str)
+			s_idx := int(getCrc(log_arr[5]) % uint32(len(serverMap)))
+			if serverMap[s_idx] == serverid {
+				idx := getCrc(str_log) % uint32(count)
+				task_ch[idx] <- str_log
+			}
+			//
+		case <-signals:
+			break ConsumerLoop
 		}
 	}
-
-	//scfgk = strings.Replace(scfgk, "\r", "", -1)
-	blog("kafka server conn " + scfgk)
-	blog("kafka server cfg " + g_Config["kafkaServerList"])
-	//consumer, err := kafka.NewConsumer([]string{"kafka-0001:9092", "kafka-0002:9092", "kafka-0003:9092", "kafka-0004:9092", "kafka-0005:9092", "kafka-0006:9092", "kafka-0007:9092", "kafka-0008:9092"}, nil)
-	/*
-			consumer, err := kafka.NewConsumer([]string{scfgk}, nil)
-			if err != nil {
-				fmt.Println(err)
-				panic(err)
-			}
-
-			defer func() {
-				if err := consumer.Close(); err != nil {
-					fmt.Println(err)
-				}
-			}()
-
-			partitionConsumer, err := consumer.ConsumePartition("adrtlog", 0, kafka.OffsetNewest)
-			if err != nil {
-				fmt.Println(err)
-				panic(err)
-			}
-
-			defer func() {
-				if err := partitionConsumer.Close(); err != nil {
-					fmt.Println(err)
-				}
-			}()
-
-			// Trap SIGINT to trigger a shutdown.
-			signals := make(chan os.Signal, 1)
-			signal.Notify(signals, os.Interrupt)
-
-		ConsumerLoop:
-			for {
-				select {
-				case msg := <-partitionConsumer.Messages():
-					blog(" get kafka inputString " + string(msg.Value))
-
-					//fmt.Println("Consumed message offset ", msg.Offset, string(msg.Value))
-					str_log := formatLog(string(msg.Value))
-					// 这里 做cid 哈希的判断
-					var log_arr []string = strings.Split(str_log, sep_str)
-					s_idx := int(getCrc(log_arr[5]) % uint32(len(serverMap)))
-					if serverMap[s_idx] == serverid {
-						idx := getCrc(str_log) % uint32(count)
-						task_ch[idx] <- str_log
-					}
-					//
-				case <-signals:
-					break ConsumerLoop
-				}
-			}*/
 }
 
 func processTask(idx int) {

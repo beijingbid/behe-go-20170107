@@ -499,7 +499,7 @@ func view_process(strarr *[]string) {
 		//基础报表-------------------
 		tb_base_key := "BASE^" + str_today + "^" + did + "^" + bid + "^" + pid + "^" + cid
 		viewSetRecord(tb_base_key, did, bid, pid, cid)
-		blog(" BASE view str_today " + str_today + " did " + did + " bid " + bid + " pid " + pid + " cid " + cid)
+		//blog(" BASE view str_today " + str_today + " did " + did + " bid " + bid + " pid " + pid + " cid " + cid)
 
 		//---------------------------------
 		shift_g_recored_lock.RUnlock()

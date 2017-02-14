@@ -335,8 +335,8 @@ func fillTask_kafka() {
 	str_kafkaServerList = strings.Replace(str_kafkaServerList, "\r", "", 1)
 	str_kafkaServerList = strings.Replace(str_kafkaServerList, "\t", "", 1)
 	//consumer, err := kafka.NewConsumer([]string{"kafka-0001:9092", "kafka-0002:9092", "kafka-0003:9092", "kafka-0004:9092", "kafka-0005:9092", "kafka-0006:9092", "kafka-0007:9092", "kafka-0008:9092"}, nil)
-	//consumer, err := kafka.NewConsumer([]string{str_kafkaServerList}, nil)
-	consumer, err := kafka.NewConsumer([]string{"localhost:9092"}, nil)
+	consumer, err := kafka.NewConsumer([]string{str_kafkaServerList}, nil)
+	//consumer, err := kafka.NewConsumer([]string{"localhost:9092"}, nil)
 	blog(" debug kafka server list = " + str_kafkaServerList)
 	if err != nil {
 		fmt.Println(err)

@@ -60,7 +60,8 @@ type RecoredSet struct {
 	m_record_lock sync.RWMutex
 }
 
-var sep = '\x02'
+//var sep = '\x02'
+var sep = ','
 var sep_str = string(sep)
 
 var g_recored []RecoredSet
@@ -122,11 +123,6 @@ func initConfig() {
 }
 
 func initKafkaConfig() {
-	serverid = g_Config["serverId"]
-	s := strings.Split(g_Config["serverList"], ",")
-	for i := 0; i < len(s); i++ {
-		serverMap[i] = s[i]
-	}
 }
 
 func initRedis() {
@@ -317,26 +313,113 @@ func fillTask_syslog() {
 // kafka
 func fillTask_kafka() {
 
+	kafkaServerId := g_Config["kafkaServerId"]
+	s := strings.Split(g_Config["kafkaServerList"], ",")
+	str_kafkaServerList := ""
+	for i := 0; i < len(s); i++ {
+		str_kafkaServerList += "\""
+		serverMap[i] = s[i]
+		s2 := strings.Split(s[i], "|")
+		str_kafkaServerList += s2[0] + ":"
+		if len(s2) == 1 || s2[1] == "" {
+			str_kafkaServerList += "9092"
+			//serverMap[i] = s2[0] + ":9092"
+		} else {
+			str_kafkaServerList += s2[1]
+			//serverMap[i] = s2[0] + ":" + s2[1]
+		}
+		str_kafkaServerList += "\""
+	}
+
+	str_kafkaServerList = strings.Replace(str_kafkaServerList, "\n", "", 1)
+	str_kafkaServerList = strings.Replace(str_kafkaServerList, "\r", "", 1)
+	str_kafkaServerList = strings.Replace(str_kafkaServerList, "\t", "", 1)
+	//consumer, err := kafka.NewConsumer([]string{"kafka-0001:9092", "kafka-0002:9092", "kafka-0003:9092", "kafka-0004:9092", "kafka-0005:9092", "kafka-0006:9092", "kafka-0007:9092", "kafka-0008:9092"}, nil)
+	//consumer, err := kafka.NewConsumer([]string{str_kafkaServerList}, nil)
+	consumer, err := kafka.NewConsumer([]string{"localhost:9092"}, nil)
+	blog(" debug kafka server list = " + str_kafkaServerList)
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+
+	defer func() {
+		if err := consumer.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	partitionConsumer, err := consumer.ConsumePartition("test", 0, kafka.OffsetNewest)
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+
+	defer func() {
+		if err := partitionConsumer.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	// Trap SIGINT to trigger a shutdown.
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+	blog(" debug kafkaserverid = " + kafkaServerId)
+	blog(" debug len serverMap = " + fmt.Sprintf("%d", len(serverMap)))
+
 ConsumerLoop:
 	for {
 		select {
 		case msg := <-partitionConsumer.Messages():
-			blog(" get kafka inputString " + string(msg.Value))
-
 			//fmt.Println("Consumed message offset ", msg.Offset, string(msg.Value))
-			str_log := formatLog(string(msg.Value))
+			blog(" debug get kafka inputString " + string(msg.Value))
+			str_log := formatKafkaLog(string(msg.Value))
+			blog(" debug get kafka formatLog " + str_log)
 			// 这里 做cid 哈希的判断
 			var log_arr []string = strings.Split(str_log, sep_str)
-			s_idx := int(getCrc(log_arr[5]) % uint32(len(serverMap)))
-			if serverMap[s_idx] == serverid {
-				idx := getCrc(str_log) % uint32(count)
-				task_ch[idx] <- str_log
+			if len(log_arr) < 9 {
+				blog(" debug log_arr count = " + fmt.Sprintf("%d", len(log_arr)))
+			} else {
+				blog(" debug log 5 = " + log_arr[5])
+				blog(" debug getcrc = " + fmt.Sprintf("%d", getCrc(log_arr[5])))
+				s_idx := int(getCrc(log_arr[5]) % uint32(len(serverMap)))
+				blog(" debug s_idx = " + fmt.Sprintf("%d", s_idx))
+				blog(" debug serverMap[s_idx] = " + serverMap[s_idx])
+				blog(" debug kafkaServerId = " + kafkaServerId)
+				if serverMap[s_idx] == kafkaServerId {
+					idx := getCrc(str_log) % uint32(count)
+					task_ch[idx] <- str_log
+				}
 			}
-			//
+			//task_ch[getCrc(string(msg.Value))%uint32(count)] <- string(msg.Value)
 		case <-signals:
 			break ConsumerLoop
 		}
 	}
+
+	/*
+		//#################################################
+
+		   ConsumerLoop:
+		   	for {
+		   		select {
+		   		case msg := <-partitionConsumer.Messages():
+		   			blog(" get kafka inputString " + string(msg.Value))
+
+		   			//fmt.Println("Consumed message offset ", msg.Offset, string(msg.Value))
+		   			str_log := formatLog(string(msg.Value))
+		   			// 这里 做cid 哈希的判断
+		   			var log_arr []string = strings.Split(str_log, sep_str)
+		   			s_idx := int(getCrc(log_arr[5]) % uint32(len(serverMap)))
+		   			if serverMap[s_idx] == serverid {
+		   				idx := getCrc(str_log) % uint32(count)
+		   				task_ch[idx] <- str_log
+		   			}
+		   			//
+		   		case <-signals:
+		   			break ConsumerLoop
+		   		}
+		   	}*/
 }
 
 func processTask(idx int) {
@@ -358,6 +441,10 @@ func formatLog(str string) string {
 		return Substr(str, 28, strings.Count(str, ""))
 		//return str
 	}
+
+}
+func formatKafkaLog(str string) string {
+	return str
 
 }
 
@@ -619,7 +706,7 @@ func main() {
 	//parseconf()
 	initConfig()
 	initRedis()
-	initKafkaConfig()
+	//initKafkaConfig()
 	go fillTask_kafka()
 	//} else {
 	go fillTask_syslog()
